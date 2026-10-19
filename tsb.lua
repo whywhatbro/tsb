@@ -1,4 +1,4 @@
--- Advanced Mobile Menu v12 (TSB Ultimate: Force Reset Button, Predictive Aim & Void Executer on Crowd Control)
+-- Advanced Mobile Menu v15 (TSB Ultimate: Invisibility, Smart Grab Void Executer, Predictive Aim & Force Reset)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -8,8 +8,8 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-if CoreGui:FindFirstChild("AdvancedMobileMenuV12") then
-    CoreGui.AdvancedMobileMenuV12:Destroy()
+if CoreGui:FindFirstChild("AdvancedMobileMenuV15") then
+    CoreGui.AdvancedMobileMenuV15:Destroy()
 end
 
 -- Cấu hình trạng thái
@@ -23,32 +23,54 @@ local followPositionMode = "Behind" -- "Behind" hoặc "Feet"
 -- Biến Anti-Void
 local antiVoidEnabled = true
 
--- Biến Void Executer (Dịch chuyển địch xuống void khi dùng chiêu khống chế)
+-- Biến Void Executer
 local voidExecuterEnabled = true
 
--- Biến Auto M1 và Auto Skills
-local autoM1Enabled = false
+-- Biến Invisibility (Tàng hình)
+local invisibilityEnabled = false
+
+-- Danh sách phím kỹ năng
 local autoSkills = {
-    {key = "One", name = "Skill 1 (1)", enabled = false},
-    {key = "Two", name = "Skill 2 (2)", enabled = false},
-    {key = "Three", name = "Skill 3 (3)", enabled = false},
-    {key = "Four", name = "Skill 4 (4)", enabled = false},
-    {key = "Q", name = "Skill Q", enabled = false},
-    {key = "E", name = "Skill E", enabled = false},
-    {key = "R", name = "Skill R", enabled = false},
-    {key = "F", name = "Skill F", enabled = false},
+    {key = "One", name = "Skill 1 (1)", enabled = false, isGrab = true},
+    {key = "Two", name = "Skill 2 (2)", enabled = false, isGrab = true},
+    {key = "Three", name = "Skill 3 (3)", enabled = false, isGrab = false},
+    {key = "Four", name = "Skill 4 (4)", enabled = false, isGrab = false},
+    {key = "Q", name = "Skill Q", enabled = false, isGrab = false},
+    {key = "E", name = "Skill E", enabled = false, isGrab = false},
+    {key = "R", name = "Skill R", enabled = false, isGrab = false},
+    {key = "F", name = "Skill F", enabled = false, isGrab = false},
 }
 
--- Hàm Aim thông minh tính toán trước hướng di chuyển của địch (Predictive Aim)
-local function aimAndPressKey(keyName, targetChar)
-    local keyCode = Enum.KeyCode[keyName]
+-- Hàm xử lý tàng hình (Ẩn hiển thị nhân vật với người chơi khác)
+local function setInvisibility(state)
+    local char = player.Character
+    if not char then return end
+    
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Transparency = state and 1 or 0
+        elseif part:IsA("Decal") or part:IsA("Accessory") or part:IsA("Clothing") then
+            if part:IsA("Decal") then
+                part.Transparency = state and 1 or 0
+            else
+                for _, subPart in ipairs(part:GetDescendants()) do
+                    if subPart:IsA("BasePart") then
+                        subPart.Transparency = state and 1 or 0
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Hàm Aim thông minh và Void Executer
+local function aimAndPressKey(skillObj, targetChar)
+    local keyCode = Enum.KeyCode[skillObj.key]
     if keyCode and targetChar and targetChar:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = player.Character.HumanoidRootPart
         local targetHRP = targetChar.HumanoidRootPart
         
-        -- Tính toán vị trí dự đoán dựa trên vận tốc của kẻ địch để aim không trượt
         local predictedPos = targetHRP.Position + (targetHRP.Velocity * 0.1)
-        
         local lookCFrame = CFrame.new(hrp.Position, Vector3.new(predictedPos.X, hrp.Position.Y, predictedPos.Z))
         hrp.CFrame = lookCFrame
         camera.CFrame = CFrame.new(camera.CFrame.Position, predictedPos)
@@ -57,11 +79,15 @@ local function aimAndPressKey(keyName, targetChar)
         task.wait(0.08)
         VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
 
-        -- Nếu tính năng Void Executer bật, khi dùng chiêu sẽ dịch chuyển thẳng mục tiêu xuống Void để kết liễu
-        if voidExecuterEnabled and targetHRP then
+        if voidExecuterEnabled and skillObj.isGrab and targetHRP then
             task.spawn(function()
-                targetHRP.CFrame = CFrame.new(0, -50000, 0)
-                targetHRP.Velocity = Vector3.new(0, 0, 0)
+                for i = 1, 15 do
+                    if targetHRP and targetHRP.Parent then
+                        targetHRP.CFrame = CFrame.new(0, -50000, 0)
+                        targetHRP.Velocity = Vector3.new(0, -1000, 0)
+                    end
+                    task.wait(0.04)
+                end
             end)
         end
     end
@@ -69,7 +95,7 @@ end
 
 -- Tạo ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedMobileMenuV12"
+screenGui.Name = "AdvancedMobileMenuV15"
 screenGui.Parent = CoreGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -87,7 +113,7 @@ toggleBtn.TextSize = 13
 toggleBtn.Text = "Menu"
 local c1 = Instance.new("UICorner") c1.CornerRadius = UDim.new(1, 0) c1.Parent = toggleBtn
 
--- 2. NÚT RESET NỔI CỰC MẠNH (Bất chấp combat/lỗi)
+-- 2. NÚT RESET NỔI CỰC MẠNH
 local resetBtn = Instance.new("TextButton")
 resetBtn.Name = "ResetBtn"
 resetBtn.Parent = screenGui
@@ -104,7 +130,6 @@ local cReset = Instance.new("UICorner") cReset.CornerRadius = UDim.new(1, 0) cRe
 resetBtn.MouseButton1Click:Connect(function()
     pcall(function()
         if player.Character and player.Character:FindFirstChild("Humanoid") then
-            -- Phá hủy Humanoid hoặc set máu về 0 để reset lập tức bất chấp trạng thái combat
             player.Character.Humanoid.Health = 0
             if player.Character:FindFirstChild("HumanoidRootPart") then
                 player.Character.HumanoidRootPart:Destroy()
@@ -113,7 +138,6 @@ resetBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Hàm kéo thả chung
 local function makeDraggable(guiObject)
     local dragging, dragStart, startPos
     guiObject.InputBegan:Connect(function(input)
@@ -143,7 +167,7 @@ mainFrame.Parent = screenGui
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 mainFrame.BorderSizePixel = 0
 mainFrame.Position = UDim2.new(0.02, 0, 0.35, 0)
-mainFrame.Size = UDim2.new(0, 230, 0, 500)
+mainFrame.Size = UDim2.new(0, 230, 0, 520)
 mainFrame.Visible = false
 local c2 = Instance.new("UICorner") c2.CornerRadius = UDim.new(0, 8) c2.Parent = mainFrame
 makeDraggable(mainFrame)
@@ -155,7 +179,7 @@ title.Size = UDim2.new(1, 0, 0, 30)
 title.Font = Enum.Font.SourceSansBold
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
-title.Text = "☰ TSB MOBILE MENU v12"
+title.Text = "☰ TSB MOBILE MENU v15"
 local c3 = Instance.new("UICorner") c3.CornerRadius = UDim.new(0, 8) c3.Parent = title
 
 local powerBtn = Instance.new("TextButton")
@@ -169,10 +193,35 @@ powerBtn.TextSize = 12
 powerBtn.Text = "Bám đuổi: OFF"
 local cPow = Instance.new("UICorner") cPow.CornerRadius = UDim.new(0, 4) cPow.Parent = powerBtn
 
+-- Nút Tàng hình (Invisibility)
+local invisBtn = Instance.new("TextButton")
+invisBtn.Parent = mainFrame
+invisBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+invisBtn.Position = UDim2.new(0, 10, 0, 64)
+invisBtn.Size = UDim2.new(1, -20, 0, 24)
+invisBtn.Font = Enum.Font.SourceSansBold
+invisBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+invisBtn.TextSize = 11
+invisBtn.Text = "Invisibility (Tàng hình): OFF"
+local cInvis = Instance.new("UICorner") cInvis.CornerRadius = UDim.new(0, 4) cInvis.Parent = invisBtn
+
+invisBtn.MouseButton1Click:Connect(function()
+    invisibilityEnabled = not invisibilityEnabled
+    if invisibilityEnabled then
+        invisBtn.Text = "Invisibility (Tàng hình): ON"
+        invisBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
+        setInvisibility(true)
+    else
+        invisBtn.Text = "Invisibility (Tàng hình): OFF"
+        invisBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+        setInvisibility(false)
+    end
+end)
+
 local antiVoidBtn = Instance.new("TextButton")
 antiVoidBtn.Parent = mainFrame
 antiVoidBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-antiVoidBtn.Position = UDim2.new(0, 10, 0, 64)
+antiVoidBtn.Position = UDim2.new(0, 10, 0, 92)
 antiVoidBtn.Size = UDim2.new(1, -20, 0, 24)
 antiVoidBtn.Font = Enum.Font.SourceSansBold
 antiVoidBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -191,25 +240,24 @@ antiVoidBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút Bật/Tắt Void Executer (Dịch chuyển địch xuống void khi dùng chiêu khống chế)
 local voidExecBtn = Instance.new("TextButton")
 voidExecBtn.Parent = mainFrame
 voidExecBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-voidExecBtn.Position = UDim2.new(0, 10, 0, 92)
+voidExecBtn.Position = UDim2.new(0, 10, 0, 120)
 voidExecBtn.Size = UDim2.new(1, -20, 0, 24)
 voidExecBtn.Font = Enum.Font.SourceSansBold
 voidExecBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 voidExecBtn.TextSize = 11
-voidExecBtn.Text = "Void Executer (Khống chế -> Void): ON"
+voidExecBtn.Text = "Void Executer (Chiêu tóm -> Void): ON"
 local cVoidExec = Instance.new("UICorner") cVoidExec.CornerRadius = UDim.new(0, 4) cVoidExec.Parent = voidExecBtn
 
 voidExecBtn.MouseButton1Click:Connect(function()
     voidExecuterEnabled = not voidExecuterEnabled
     if voidExecuterEnabled then
-        voidExecBtn.Text = "Void Executer (Khống chế -> Void): ON"
+        voidExecBtn.Text = "Void Executer (Chiêu tóm -> Void): ON"
         voidExecBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
     else
-        voidExecBtn.Text = "Void Executer (Khống chế -> Void): OFF"
+        voidExecBtn.Text = "Void Executer (Chiêu tóm -> Void): OFF"
         voidExecBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
     end
 end)
@@ -217,7 +265,7 @@ end)
 local posModeBtn = Instance.new("TextButton")
 posModeBtn.Parent = mainFrame
 posModeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 120)
-posModeBtn.Position = UDim2.new(0, 10, 0, 120)
+posModeBtn.Position = UDim2.new(0, 10, 0, 148)
 posModeBtn.Size = UDim2.new(1, -20, 0, 25)
 posModeBtn.Font = Enum.Font.SourceSansBold
 posModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -240,7 +288,7 @@ end)
 local modeBtn = Instance.new("TextButton")
 modeBtn.Parent = mainFrame
 modeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-modeBtn.Position = UDim2.new(0, 10, 0, 149)
+modeBtn.Position = UDim2.new(0, 10, 0, 177)
 modeBtn.Size = UDim2.new(1, -20, 0, 25)
 modeBtn.Font = Enum.Font.SourceSansBold
 modeBtn.TextColor3 = Color3.fromRGB(255, 215, 0)
@@ -251,7 +299,7 @@ local cMode = Instance.new("UICorner") cMode.CornerRadius = UDim.new(0, 4) cMode
 local nameBox = Instance.new("TextBox")
 nameBox.Parent = mainFrame
 nameBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-nameBox.Position = UDim2.new(0, 10, 0, 177)
+nameBox.Position = UDim2.new(0, 10, 0, 205)
 nameBox.Size = UDim2.new(1, -20, 0, 23)
 nameBox.Font = Enum.Font.SourceSans
 nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -263,7 +311,7 @@ local cBox = Instance.new("UICorner") cBox.CornerRadius = UDim.new(0, 4) cBox.Pa
 local blackBox = Instance.new("TextBox")
 blackBox.Parent = mainFrame
 blackBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-blackBox.Position = UDim2.new(0, 10, 0, 204)
+blackBox.Position = UDim2.new(0, 10, 0, 232)
 blackBox.Size = UDim2.new(1, -20, 0, 23)
 blackBox.Font = Enum.Font.SourceSans
 blackBox.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -274,7 +322,7 @@ local cBlack = Instance.new("UICorner") cBlack.CornerRadius = UDim.new(0, 4) cBl
 
 local distLabel = Instance.new("TextLabel")
 distLabel.Parent = mainFrame
-distLabel.Position = UDim2.new(0, 10, 0, 230)
+distLabel.Position = UDim2.new(0, 10, 0, 258)
 distLabel.Size = UDim2.new(1, -20, 0, 16)
 distLabel.BackgroundTransparency = 1
 distLabel.Font = Enum.Font.SourceSans
@@ -285,7 +333,7 @@ distLabel.Text = "Khoảng cách (Xa/Gần hoặc Dưới chân): 4"
 local minusDist = Instance.new("TextButton")
 minusDist.Parent = mainFrame
 minusDist.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-minusDist.Position = UDim2.new(0, 10, 0, 248)
+minusDist.Position = UDim2.new(0, 10, 0, 276)
 minusDist.Size = UDim2.new(0.48, 0, 0, 22)
 minusDist.Text = "- Giảm"
 minusDist.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -295,7 +343,7 @@ local cMin = Instance.new("UICorner") cMin.CornerRadius = UDim.new(0, 4) cMin.Pa
 local plusDist = Instance.new("TextButton")
 plusDist.Parent = mainFrame
 plusDist.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-plusDist.Position = UDim2.new(0.52, 0, 0, 248)
+plusDist.Position = UDim2.new(0.52, 0, 0, 276)
 plusDist.Size = UDim2.new(0.48, 0, 0, 22)
 plusDist.Text = "+ Tăng"
 plusDist.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -306,8 +354,8 @@ local scrollingFrame = Instance.new("ScrollingFrame")
 scrollingFrame.Parent = mainFrame
 scrollingFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 scrollingFrame.BorderSizePixel = 0
-scrollingFrame.Position = UDim2.new(0, 10, 0, 273)
-scrollingFrame.Size = UDim2.new(1, -20, 0, 45)
+scrollingFrame.Position = UDim2.new(0, 10, 0, 301)
+scrollingFrame.Size = UDim2.new(1, -20, 0, 40)
 scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 scrollingFrame.ScrollBarThickness = 3
 local uiLayout = Instance.new("UIListLayout") uiLayout.Parent = scrollingFrame uiLayout.Padding = UDim.new(0, 3)
@@ -315,7 +363,7 @@ scrollingFrame.Visible = false
 
 local combatLabel = Instance.new("TextLabel")
 combatLabel.Parent = mainFrame
-combatLabel.Position = UDim2.new(0, 10, 0, 324)
+combatLabel.Position = UDim2.new(0, 10, 0, 348)
 combatLabel.Size = UDim2.new(1, -20, 0, 18)
 combatLabel.BackgroundTransparency = 1
 combatLabel.Font = Enum.Font.SourceSansBold
@@ -326,7 +374,7 @@ combatLabel.Text = "--- AUTO COMBAT (MOBILE M1 & SKILLS) ---"
 local autoM1Btn = Instance.new("TextButton")
 autoM1Btn.Parent = mainFrame
 autoM1Btn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-autoM1Btn.Position = UDim2.new(0, 10, 0, 345)
+autoM1Btn.Position = UDim2.new(0, 10, 0, 369)
 autoM1Btn.Size = UDim2.new(1, -20, 0, 24)
 autoM1Btn.Font = Enum.Font.SourceSansBold
 autoM1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -349,8 +397,8 @@ local skillFrame = Instance.new("ScrollingFrame")
 skillFrame.Parent = mainFrame
 skillFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 skillFrame.BorderSizePixel = 0
-skillFrame.Position = UDim2.new(0, 10, 0, 373)
-skillFrame.Size = UDim2.new(1, -20, 0, 115)
+skillFrame.Position = UDim2.new(0, 10, 0, 397)
+skillFrame.Size = UDim2.new(1, -20, 0, 110)
 skillFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 skillFrame.ScrollBarThickness = 3
 local skillLayout = Instance.new("UIListLayout") skillLayout.Parent = skillFrame skillLayout.Padding = UDim.new(0, 3)
@@ -363,16 +411,16 @@ for _, skill in ipairs(autoSkills) do
     sBtn.Font = Enum.Font.SourceSansBold
     sBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     sBtn.TextSize = 11
-    sBtn.Text = skill.name .. ": OFF"
+    sBtn.Text = skill.name .. (skill.isGrab and " [Tóm/Kéo]" or "") .. ": OFF"
     local cSBtn = Instance.new("UICorner") cSBtn.CornerRadius = UDim.new(0, 3) cSBtn.Parent = sBtn
     
     sBtn.MouseButton1Click:Connect(function()
         skill.enabled = not skill.enabled
         if skill.enabled then
-            sBtn.Text = skill.name .. ": ON"
+            sBtn.Text = skill.name .. (skill.isGrab and " [Tóm/Kéo]" or "") .. ": ON"
             sBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
         else
-            sBtn.Text = skill.name .. ": OFF"
+            sBtn.Text = skill.name .. (skill.isGrab and " [Tóm/Kéo]" or "") .. ": OFF"
             sBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
         end
     end)
@@ -467,7 +515,6 @@ local function getLowestHealthPlayer()
 end
 
 RunService.RenderStepped:Connect(function()
-    -- Chống Anti-Void toàn diện cho nhân vật của bạn ở mọi chế độ
     if antiVoidEnabled then
         local char = player.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
@@ -476,6 +523,11 @@ RunService.RenderStepped:Connect(function()
                 char.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
             end
         end
+    end
+
+    -- Duy trì trạng thái tàng hình nếu đang bật
+    if invisibilityEnabled then
+        setInvisibility(true)
     end
 
     if not isEnabled or not isFollowing then return end
@@ -527,7 +579,15 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Vòng lặp Auto Combat (M1 & Predictive Aim Skills)
+-- Tự động cập nhật lại tàng hình nếu nhân vật reset/hồi sinh
+player.CharacterAdded:Connect(function(newChar)
+    task.wait(1)
+    if invisibilityEnabled then
+        setInvisibility(true)
+    end
+end)
+
+-- Vòng lặp Auto Combat
 task.spawn(function()
     while true do
         task.wait(0.15)
@@ -553,7 +613,7 @@ task.spawn(function()
         
         for _, skill in ipairs(autoSkills) do
             if skill.enabled and targetChar then
-                aimAndPressKey(skill.key, targetChar)
+                aimAndPressKey(skill, targetChar)
                 task.wait(0.35)
             end
         end
@@ -594,4 +654,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     if mainFrame.Visible and currentMode == 1 then updateList() end
 end)
 
-print("Advanced Mobile Menu v12 Loaded Successfully!")
+print("Advanced Mobile Menu v15 Loaded Successfully!")
