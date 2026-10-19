@@ -1,13 +1,15 @@
--- Advanced Mobile Menu v10 (TSB Ultimate: Skills Aim at Target & Working Mobile Auto M1)
+-- Advanced Mobile Menu v11 (TSB Ultimate: True Camera & Character Aim for Skills + Working Mobile Auto M1)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
-if CoreGui:FindFirstChild("AdvancedMobileMenuV10") then
-    CoreGui.AdvancedMobileMenuV10:Destroy()
+if CoreGui:FindFirstChild("AdvancedMobileMenuV11") then
+    CoreGui.AdvancedMobileMenuV11:Destroy()
 end
 
 -- Cấu hình trạng thái
@@ -34,24 +36,28 @@ local autoSkills = {
     {key = "F", name = "Skill F", enabled = false},
 }
 
--- Hàm giả lập nhấn phím kỹ năng trên Mobile kèm hướng thẳng vào mục tiêu
-local function pressKeyAtTarget(keyName, targetHRP)
-    local vim = game:GetService("VirtualInputManager")
+-- Hàm ép Camera và Nhân vật hướng thẳng vào mục tiêu để aim chiêu chuẩn xác
+local function aimAndPressKey(keyName, targetHRP)
     local keyCode = Enum.KeyCode[keyName]
     if keyCode and targetHRP and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = player.Character.HumanoidRootPart
-        -- Tạm thời xoay mặt về phía kẻ địch để tung chiêu chuẩn xác
-        hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(targetHRP.Position.X, hrp.Position.Y, targetHRP.Position.Z))
+        local targetPos = targetHRP.Position
         
-        vim:SendKeyEvent(true, keyCode, false, game)
-        task.wait(0.05)
-        vim:SendKeyEvent(false, keyCode, false, game)
+        -- 1. Quay mặt nhân vật và hướng Camera thẳng vào kẻ địch
+        local lookCFrame = CFrame.new(hrp.Position, Vector3.new(targetPos.X, hrp.Position.Y, targetPos.Z))
+        hrp.CFrame = lookCFrame
+        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
+        
+        -- 2. Gửi lệnh kích hoạt phím kỹ năng
+        VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
+        task.wait(0.08)
+        VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
     end
 end
 
 -- Tạo ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedMobileMenuV10"
+screenGui.Name = "AdvancedMobileMenuV11"
 screenGui.Parent = CoreGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -109,7 +115,7 @@ title.Size = UDim2.new(1, 0, 0, 30)
 title.Font = Enum.Font.SourceSansBold
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
-title.Text = "☰ TSB MOBILE MENU v10"
+title.Text = "☰ TSB MOBILE MENU v11"
 local c3 = Instance.new("UICorner") c3.CornerRadius = UDim.new(0, 8) c3.Parent = title
 
 local powerBtn = Instance.new("TextButton")
@@ -458,7 +464,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Vòng lặp Auto M1 (Sửa lỗi Mobile hoạt động mượt mà) & Auto Skills (Hướng thẳng vào mục tiêu)
+-- Vòng lặp Auto M1 và Auto Skills (Aim trực tiếp qua Camera và Nhân vật)
 task.spawn(function()
     while true do
         task.wait(0.15)
@@ -469,24 +475,23 @@ task.spawn(function()
         end
         
         if autoM1Enabled then
-            -- Kích hoạt tấn công M1 chuẩn xác cho Mobile qua VirtualUser và Tool đang cầm
             local char = player.Character
             if char then
                 local tool = char:FindFirstChildOfClass("Tool")
                 if tool then
                     tool:Activate()
                 else
-                    VirtualUser:Button1Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                    VirtualUser:Button1Down(Vector2.new(0,0), camera.CFrame)
                     task.wait(0.05)
-                    VirtualUser:Button1Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                    VirtualUser:Button1Up(Vector2.new(0,0), camera.CFrame)
                 end
             end
         end
         
         for _, skill in ipairs(autoSkills) do
             if skill.enabled and targetHRP then
-                pressKeyAtTarget(skill.key, targetHRP)
-                task.wait(0.4)
+                aimAndPressKey(skill.key, targetHRP)
+                task.wait(0.35)
             end
         end
     end
@@ -526,4 +531,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     if mainFrame.Visible and currentMode == 1 then updateList() end
 end)
 
-print("Advanced Mobile Menu v10 Loaded Successfully!")
+print("Advanced Mobile Menu v11 Loaded Successfully!")
