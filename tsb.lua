@@ -1,4 +1,4 @@
--- Advanced Mobile Menu v16 (TSB Ultimate: Sleek Horizontal Modern UI, Invisibility, Smart Grab Void Executer & Predictive Aim)
+-- Advanced Mobile Menu v19 (TSB Ultimate: True Network Invisibility, Textbox Target, Smart Grab Void Executer & Horizontal UI)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -8,19 +8,19 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-if CoreGui:FindFirstChild("AdvancedMobileMenuV16") then
-    CoreGui.AdvancedMobileMenuV16:Destroy()
+if CoreGui:FindFirstChild("AdvancedMobileMenuV19") then
+    CoreGui.AdvancedMobileMenuV19:Destroy()
 end
 
 -- Cấu hình trạng thái
 local isEnabled = false
-local currentMode = 3 -- 1: Danh sách, 2: Textbox, 3: Random, 4: Ít máu nhất
+local currentMode = 3 -- 1: Danh sách, 2: Textbox nhập tên, 3: Random, 4: Ít máu nhất
 local targetPlayer = nil
 local isFollowing = false
 local distanceOffset = 4
 local followPositionMode = "Behind" -- "Behind" hoặc "Feet"
 
--- Biến Anti-Void & Tàng hình
+-- Biến Anti-Void & Tàng hình thật
 local antiVoidEnabled = true
 local voidExecuterEnabled = true
 local invisibilityEnabled = false
@@ -37,12 +37,13 @@ local autoSkills = {
     {key = "F", name = "Skill F", enabled = false, isGrab = false},
 }
 
--- Hàm tàng hình
-local function setInvisibility(state)
+-- Hàm tàng hình thật (Ẩn nhân vật + Đưa xuống dưới đất sâu một khoảng siêu nhỏ khi không bám đuổi để địch không thấy)
+local function setTrueInvisibility(state)
     local char = player.Character
-    if not char then return end
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
     for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+        if part:IsA("BasePart") then
             part.Transparency = state and 1 or 0
         elseif part:IsA("Decal") or part:IsA("Accessory") or part:IsA("Clothing") then
             if part:IsA("Decal") then
@@ -56,6 +57,45 @@ local function setInvisibility(state)
     end
 end
 
+-- Hàm tìm mục tiêu qua Textbox (Chế độ 2)
+local function findTargetByText(query)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and (p.DisplayName and string.lower(p.DisplayName):sub(1, #query) == string.lower(query) or string.lower(p.Name):sub(1, #query) == string.lower(query)) then
+            return p
+        end
+    end
+    return nil
+end
+
+-- Hàm lấy Random người chơi (Chế độ 3)
+local function getRandomPlayer()
+    local validList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChildOfClass("Humanoid") then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum.Health > 0 then table.insert(validList, p) end
+        end
+    end
+    if #validList > 0 then return validList[math.random(1, #validList)] end
+    return nil
+end
+
+-- Hàm lấy người ít máu nhất (Chế độ 4)
+local function getLowestHealthPlayer()
+    local lowestP = nil
+    local minHealth = math.huge
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChildOfClass("Humanoid") then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum.Health > 0 and hum.Health < minHealth then
+                minHealth = hum.Health
+                lowestP = p
+            end
+        end
+    end
+    return lowestP
+end
+
 -- Hàm Aim và Void Executer
 local function aimAndPressKey(skillObj, targetChar)
     local keyCode = Enum.KeyCode[skillObj.key]
@@ -67,6 +107,13 @@ local function aimAndPressKey(skillObj, targetChar)
         local lookCFrame = CFrame.new(hrp.Position, Vector3.new(predictedPos.X, hrp.Position.Y, predictedPos.Z))
         hrp.CFrame = lookCFrame
         camera.CFrame = CFrame.new(camera.CFrame.Position, predictedPos)
+        
+        if voidExecuterEnabled and skillObj.isGrab then
+            pcall(function()
+                targetHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, -2)
+            end)
+            task.wait(0.05)
+        end
         
         VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
         task.wait(0.08)
@@ -88,7 +135,7 @@ end
 
 -- Tạo ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedMobileMenuV16"
+screenGui.Name = "AdvancedMobileMenuV19"
 screenGui.Parent = CoreGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -154,18 +201,17 @@ end
 makeDraggable(toggleBtn)
 makeDraggable(resetBtn)
 
--- 3. KHUNG MENU CHÍNH HÌNH CHỮ NHẬT NGANG (Gọn gàng, sang trọng)
+-- 3. KHUNG MENU CHÍNH HÌNH CHỮ NHẬT NGANG
 local mainFrame = Instance.new("Frame")
 mainFrame.Parent = screenGui
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.BorderSizePixel = 0
 mainFrame.Position = UDim2.new(0.12, 0, 0.15, 0)
-mainFrame.Size = UDim2.new(0, 520, 0, 310)
+mainFrame.Size = UDim2.new(0, 520, 0, 330)
 mainFrame.Visible = false
 local c2 = Instance.new("UICorner") c2.CornerRadius = UDim.new(0, 10) c2.Parent = mainFrame
 makeDraggable(mainFrame)
 
--- Thanh tiêu đề ngang
 local title = Instance.new("TextLabel")
 title.Parent = mainFrame
 title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -173,25 +219,22 @@ title.Size = UDim2.new(1, 0, 0, 32)
 title.Font = Enum.Font.SourceSansBold
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
-title.Text = "  ☰ TSB MOBILE MENU v16 (Giao diện ngang gọn gàng)"
+title.Text = "  ☰ TSB MOBILE MENU v19 (True Invis + Textbox)"
 local c3 = Instance.new("UICorner") c3.CornerRadius = UDim.new(0, 10) c3.Parent = title
 
--- BỐ CỤC 2 CỘT NGĂN NẮP (Cột trái: Cài đặt & Chức năng, Cột phải: Combat & Auto Skills)
-
--- CỘT TRÁI (Left Container)
+-- CỘT TRÁI
 local leftCol = Instance.new("Frame")
 leftCol.Parent = mainFrame
 leftCol.BackgroundTransparency = 1
-leftCol.Position = UDim2.new(0, 10, 0, 40)
-leftCol.Size = UDim2.new(0.48, 0, 1, -45)
+leftCol.Position = UDim2.new(0, 10, 0, 38)
+leftCol.Size = UDim2.new(0.48, 0, 1, -42)
 
-local leftLayout = Instance.new("UIListLayout") leftLayout.Parent = leftCol leftLayout.Padding = UDim.new(0, 5)
+local leftLayout = Instance.new("UIListLayout") leftLayout.Parent = leftCol leftLayout.Padding = UDim.new(0, 4)
 
--- Nút Bám đuổi
 local powerBtn = Instance.new("TextButton")
 powerBtn.Parent = leftCol
 powerBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-powerBtn.Size = UDim2.new(1, 0, 0, 26)
+powerBtn.Size = UDim2.new(1, 0, 0, 25)
 powerBtn.Font = Enum.Font.SourceSansBold
 powerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 powerBtn.TextSize = 12
@@ -212,35 +255,33 @@ powerBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút Tàng hình (Invisibility)
 local invisBtn = Instance.new("TextButton")
 invisBtn.Parent = leftCol
 invisBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-invisBtn.Size = UDim2.new(1, 0, 0, 26)
+invisBtn.Size = UDim2.new(1, 0, 0, 25)
 invisBtn.Font = Enum.Font.SourceSansBold
 invisBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 invisBtn.TextSize = 12
-invisBtn.Text = "Tàng hình (Invis): OFF"
+invisBtn.Text = "Tàng hình (True Invis): OFF"
 local cInvis = Instance.new("UICorner") cInvis.CornerRadius = UDim.new(0, 4) cInvis.Parent = invisBtn
 
 invisBtn.MouseButton1Click:Connect(function()
     invisibilityEnabled = not invisibilityEnabled
     if invisibilityEnabled then
-        invisBtn.Text = "Tàng hình (Invis): ON"
+        invisBtn.Text = "Tàng hình (True Invis): ON"
         invisBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-        setInvisibility(true)
+        setTrueInvisibility(true)
     else
-        invisBtn.Text = "Tàng hình (Invis): OFF"
+        invisBtn.Text = "Tàng hình (True Invis): OFF"
         invisBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-        setInvisibility(false)
+        setTrueInvisibility(false)
     end
 end)
 
--- Nút Anti-Void
 local antiVoidBtn = Instance.new("TextButton")
 antiVoidBtn.Parent = leftCol
 antiVoidBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-antiVoidBtn.Size = UDim2.new(1, 0, 0, 26)
+antiVoidBtn.Size = UDim2.new(1, 0, 0, 25)
 antiVoidBtn.Font = Enum.Font.SourceSansBold
 antiVoidBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 antiVoidBtn.TextSize = 12
@@ -258,11 +299,10 @@ antiVoidBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút Void Executer
 local voidExecBtn = Instance.new("TextButton")
 voidExecBtn.Parent = leftCol
 voidExecBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-voidExecBtn.Size = UDim2.new(1, 0, 0, 26)
+voidExecBtn.Size = UDim2.new(1, 0, 0, 25)
 voidExecBtn.Font = Enum.Font.SourceSansBold
 voidExecBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 voidExecBtn.TextSize = 12
@@ -280,11 +320,10 @@ voidExecBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút Vị trí bám
 local posModeBtn = Instance.new("TextButton")
 posModeBtn.Parent = leftCol
 posModeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 120)
-posModeBtn.Size = UDim2.new(1, 0, 0, 26)
+posModeBtn.Size = UDim2.new(1, 0, 0, 25)
 posModeBtn.Font = Enum.Font.SourceSansBold
 posModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 posModeBtn.TextSize = 12
@@ -303,11 +342,10 @@ posModeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Nút Chế độ bám
 local modeBtn = Instance.new("TextButton")
 modeBtn.Parent = leftCol
 modeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-modeBtn.Size = UDim2.new(1, 0, 0, 26)
+modeBtn.Size = UDim2.new(1, 0, 0, 25)
 modeBtn.Font = Enum.Font.SourceSansBold
 modeBtn.TextColor3 = Color3.fromRGB(255, 215, 0)
 modeBtn.TextSize = 11
@@ -324,11 +362,21 @@ modeBtn.MouseButton1Click:Connect(function()
     elseif currentMode == 4 then modeBtn.Text = "Chế độ: 4 (Ít máu nhất)" end
 end)
 
--- Hàng điều chỉnh khoảng cách
+local nameBox = Instance.new("TextBox")
+nameBox.Parent = leftCol
+nameBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+nameBox.Size = UDim2.new(1, 0, 0, 24)
+nameBox.Font = Enum.Font.SourceSans
+nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+nameBox.PlaceholderText = "Nhập tên địch (Chế độ 2)..."
+nameBox.Text = ""
+nameBox.TextSize = 11
+local cBox = Instance.new("UICorner") cBox.CornerRadius = UDim.new(0, 4) cBox.Parent = nameBox
+
 local distRow = Instance.new("Frame")
 distRow.Parent = leftCol
 distRow.BackgroundTransparency = 1
-distRow.Size = UDim2.new(1, 0, 0, 26)
+distRow.Size = UDim2.new(1, 0, 0, 24)
 
 local distLabel = Instance.new("TextLabel")
 distLabel.Parent = distRow
@@ -366,21 +414,19 @@ plusDist.MouseButton1Click:Connect(function()
     distLabel.Text = "Khoảng cách: " .. distanceOffset
 end)
 
-
--- CỘT PHẢI (Right Container - Auto M1 & Skills)
+-- CỘT PHẢI
 local rightCol = Instance.new("Frame")
 rightCol.Parent = mainFrame
 rightCol.BackgroundTransparency = 1
-rightCol.Position = UDim2.new(0.51, 0, 0, 40)
-rightCol.Size = UDim2.new(0.48, 0, 1, -45)
+rightCol.Position = UDim2.new(0.51, 0, 0, 38)
+rightCol.Size = UDim2.new(0.48, 0, 1, -42)
 
 local rightLayout = Instance.new("UIListLayout") rightLayout.Parent = rightCol rightLayout.Padding = UDim.new(0, 4)
 
--- Nút Auto M1
 local autoM1Btn = Instance.new("TextButton")
 autoM1Btn.Parent = rightCol
 autoM1Btn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-autoM1Btn.Size = UDim2.new(1, 0, 0, 26)
+autoM1Btn.Size = UDim2.new(1, 0, 0, 25)
 autoM1Btn.Font = Enum.Font.SourceSansBold
 autoM1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 autoM1Btn.TextSize = 11
@@ -398,12 +444,11 @@ autoM1Btn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Khung chứa các nút Auto Skill thu gọn
 local skillScroll = Instance.new("ScrollingFrame")
 skillScroll.Parent = rightCol
 skillScroll.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 skillScroll.BorderSizePixel = 0
-skillScroll.Size = UDim2.new(1, 0, 0, 205)
+skillScroll.Size = UDim2.new(1, 0, 0, 215)
 skillScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 skillScroll.ScrollBarThickness = 3
 local sLayout = Instance.new("UIListLayout") sLayout.Parent = skillScroll sLayout.Padding = UDim.new(0, 3)
@@ -432,8 +477,7 @@ for _, skill in ipairs(autoSkills) do
 end
 skillScroll.CanvasSize = UDim2.new(0, 0, 0, sLayout.AbsoluteContentSize.Y + 5)
 
-
--- Logic chạy ngầm vòng lặp
+-- Vòng lặp chính bám dính & xử lý Tàng hình thật
 RunService.RenderStepped:Connect(function()
     if antiVoidEnabled then
         local char = player.Character
@@ -446,7 +490,12 @@ RunService.RenderStepped:Connect(function()
     end
 
     if invisibilityEnabled then
-        setInvisibility(true)
+        setTrueInvisibility(true)
+        -- Đẩy nhân vật lệch nhẹ khỏi trục nhìn camera của địch khi không bám đuổi để tàng hình thực sự
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and not isEnabled then
+            char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame + Vector3.new(0, -10, 0)
+        end
     end
 
     if not isEnabled or not isFollowing then return end
@@ -500,7 +549,7 @@ end)
 
 player.CharacterAdded:Connect(function(newChar)
     task.wait(1)
-    if invisibilityEnabled then setInvisibility(true) end
+    if invisibilityEnabled then setTrueInvisibility(true) end
 end)
 
 -- Vòng lặp Combat
@@ -537,4 +586,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
-print("Advanced Mobile Menu v16 Loaded Successfully!")
+print("Advanced Mobile Menu v19 Loaded Successfully!")
