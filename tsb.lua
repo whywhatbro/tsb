@@ -1,4 +1,4 @@
--- Advanced Mobile Menu v20 (TSB Ultimate: Tabbed UI, Lockable Buttons, Click-to-Target, In-Place Respawn with Animation, Camera/Wall ESP & True Invis)
+-- Advanced Mobile Menu v22 (TSB Ultimate: Custom Kneeling Death Animation & Natural Bottom-to-Top Assembly Resurrection)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -9,13 +9,13 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
-if CoreGui:FindFirstChild("AdvancedMobileMenuV20") then
-    CoreGui.AdvancedMobileMenuV20:Destroy()
+if CoreGui:FindFirstChild("AdvancedMobileMenuV22") then
+    CoreGui.AdvancedMobileMenuV22:Destroy()
 end
 
 -- Trạng thái tổng hợp
 local isEnabled = false
-local currentMode = 3 -- 1: Click chọn, 2: Textbox, 3: Random, 4: Ít máu nhất
+local currentMode = 3
 local targetPlayer = nil
 local isFollowing = false
 local distanceOffset = 4
@@ -25,11 +25,19 @@ local antiVoidEnabled = true
 local voidExecuterEnabled = true
 local invisibilityEnabled = false
 local respawnAtDeathEnabled = false
-local wallHackEnabled = false
-local uiLocked = false -- Khóa di chuyển các nút nổi
+local espEnabled = false
+local wallhackEnabled = false
+local uiLocked = false
+
+local customWalkSpeed = 16
+local customJumpPower = 50
+local infiniteJumpEnabled = false
 
 local deathPosition = nil
-local isRespawning = false
+local isCustomRespawning = false
+
+-- Waypoint ngọn núi nổi tiếng trong TSB
+local tsbMountainWaypoint = CFrame.new(120, 350, -450)
 
 local autoSkills = {
     {key = "One", name = "Skill 1 (1)", enabled = false, isGrab = true},
@@ -42,7 +50,7 @@ local autoSkills = {
     {key = "F", name = "Skill F", enabled = false, isGrab = false},
 }
 
--- Tàng hình mượt mà (Fix lỗi di chuyển)
+-- Tàng hình thật sự
 local function setTrueInvisibility(state)
     local char = player.Character
     if not char then return end
@@ -97,14 +105,13 @@ end
 
 -- Tạo ScreenGui chính
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedMobileMenuV20"
+screenGui.Name = "AdvancedMobileMenuV22"
 screenGui.Parent = CoreGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 -- Nút Menu Tròn
-local toggleBtn = Instance.new("TextButton")
+local toggleBtn = Instance.new("TextButton", screenGui)
 toggleBtn.Name = "ToggleBtn"
-toggleBtn.Parent = screenGui
 toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 toggleBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
 toggleBtn.Size = UDim2.new(0, 45, 0, 45)
@@ -115,9 +122,8 @@ toggleBtn.Text = "Menu"
 Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
 
 -- Nút Reset Nổi
-local resetBtn = Instance.new("TextButton")
+local resetBtn = Instance.new("TextButton", screenGui)
 resetBtn.Name = "ResetBtn"
-resetBtn.Parent = screenGui
 resetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 resetBtn.Position = UDim2.new(0.02, 0, 0.25, 0)
 resetBtn.Size = UDim2.new(0, 45, 0, 45)
@@ -129,16 +135,54 @@ Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(1, 0)
 
 resetBtn.MouseButton1Click:Connect(function()
     pcall(function()
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            deathPosition = player.Character.HumanoidRootPart.CFrame
+        end
         if player.Character and player.Character:FindFirstChild("Humanoid") then
-            if player.Character:FindFirstChild("HumanoidRootPart") then
-                deathPosition = player.Character.HumanoidRootPart.CFrame
-            end
             player.Character.Humanoid.Health = 0
         end
     end)
 end)
 
--- Hàm kéo thả có kiểm tra khóa (Lock/Unlock)
+-- Nút hành động bay lên núi siêu nhanh
+local flyMountainBtn = Instance.new("TextButton", screenGui)
+flyMountainBtn.Name = "FlyMountainBtn"
+flyMountainBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
+flyMountainBtn.Position = UDim2.new(0.02, 0, 0.35, 0)
+flyMountainBtn.Size = UDim2.new(0, 50, 0, 50)
+flyMountainBtn.Font = Enum.Font.SourceSansBold
+flyMountainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyMountainBtn.TextSize = 11
+flyMountainBtn.Text = "Bay Núi"
+Instance.new("UICorner", flyMountainBtn).CornerRadius = UDim.new(1, 0)
+
+flyMountainBtn.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local hrp = char.HumanoidRootPart
+        local startPos = hrp.Position
+        local targetPos = tsbMountainWaypoint.Position
+        
+        local steps = 15
+        for i = 1, steps do
+            hrp.CFrame = CFrame.new(startPos:Lerp(targetPos, i / steps))
+            hrp.Velocity = Vector3.new(0, 0, 0)
+            task.wait(0.01)
+        end
+        hrp.CFrame = tsbMountainWaypoint
+        
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = 0
+            hum.JumpPower = 0
+            task.wait(0.5)
+            hum.WalkSpeed = customWalkSpeed
+            hum.JumpPower = customJumpPower
+        end
+    end
+end)
+
+-- Hàm kéo thả độc lập
 local function makeDraggable(guiObject)
     local dragging, dragStart, startPos
     guiObject.InputBegan:Connect(function(input)
@@ -147,6 +191,9 @@ local function makeDraggable(guiObject)
             dragging = true
             dragStart = input.Position
             startPos = guiObject.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
@@ -160,55 +207,51 @@ end
 
 makeDraggable(toggleBtn)
 makeDraggable(resetBtn)
+makeDraggable(flyMountainBtn)
 
 -- Khung Menu Chính Ngang
-local mainFrame = Instance.new("Frame")
-mainFrame.Parent = screenGui
+local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.Position = UDim2.new(0.12, 0, 0.15, 0)
-mainFrame.Size = UDim2.new(0, 540, 0, 340)
+mainFrame.Size = UDim2.new(0, 560, 0, 350)
 mainFrame.Visible = false
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 makeDraggable(mainFrame)
 
-local title = Instance.new("TextLabel")
-title.Parent = mainFrame
+local title = Instance.new("TextLabel", mainFrame)
 title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Font = Enum.Font.SourceSansBold
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 13
-title.Text = "  ☰ TSB MOBILE MENU v20 (Tabbed UI & Advanced Features)"
+title.TextSize = 12
+title.Text = "  ☰ TSB MOBILE MENU v22 (Custom Death & Resurrection Animation)"
 Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
 
--- THANH TAB CHUYỂN ĐỔI (4 Tabs)
-local tabButtonsFrame = Instance.new("Frame")
-tabButtonsFrame.Parent = mainFrame
+-- THANH TAB CHUYỂN ĐỔI (6 Tabs)
+local tabButtonsFrame = Instance.new("Frame", mainFrame)
 tabButtonsFrame.BackgroundTransparency = 1
 tabButtonsFrame.Position = UDim2.new(0, 10, 0, 35)
 tabButtonsFrame.Size = UDim2.new(1, -20, 0, 30)
 
-local tabs = {"1. Combat", "2. Hồi sinh", "3. Visual & Wallhack", "4. Tổng hợp & Khóa"}
+local tabs = {"1. Combat", "2. Hồi sinh", "3. Movement", "4. Dịch chuyển", "5. Visual & ESP", "6. Cài đặt"}
 local tabContentFrames = {}
 
 for i, tabName in ipairs(tabs) do
-    local tBtn = Instance.new("TextButton")
-    tBtn.Parent = tabButtonsFrame
+    local tBtn = Instance.new("TextButton", tabButtonsFrame)
     tBtn.BackgroundColor3 = i == 1 and Color3.fromRGB(60, 60, 120) or Color3.fromRGB(40, 40, 40)
-    tBtn.Size = UDim2.new(0.24, 0, 1, 0)
-    tBtn.Position = UDim2.new((i-1)*0.25, 0, 0, 0)
+    tBtn.Size = UDim2.new(0.16, 0, 1, 0)
+    tBtn.Position = UDim2.new((i-1)*0.168, 0, 0, 0)
     tBtn.Font = Enum.Font.SourceSansBold
     tBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tBtn.TextSize = 11
+    tBtn.TextSize = 10
     tBtn.Text = tabName
     Instance.new("UICorner", tBtn).CornerRadius = UDim.new(0, 4)
 
-    local cFrame = Instance.new("ScrollingFrame")
-    cFrame.Parent = mainFrame
+    local cFrame = Instance.new("ScrollingFrame", mainFrame)
     cFrame.BackgroundTransparency = 1
     cFrame.Position = UDim2.new(0, 10, 0, 72)
     cFrame.Size = UDim2.new(1, -20, 1, -80)
-    cFrame.CanvasSize = UDim2.new(0, 0, 0, 300)
+    cFrame.CanvasSize = UDim2.new(0, 0, 0, 320)
     cFrame.ScrollBarThickness = 3
     cFrame.Visible = (i == 1)
     table.insert(tabContentFrames, cFrame)
@@ -216,7 +259,6 @@ for i, tabName in ipairs(tabs) do
     tBtn.MouseButton1Click:Connect(function()
         for idx, frm in ipairs(tabContentFrames) do
             frm.Visible = (idx == i)
-            -- Đổi màu nút tab
             local btnObj = tabButtonsFrame:GetChildren()[idx]
             if btnObj and btnObj:IsA("TextButton") then
                 btnObj.BackgroundColor3 = (idx == i) and Color3.fromRGB(60, 60, 120) or Color3.fromRGB(40, 40, 40)
@@ -264,6 +306,43 @@ posModeBtn.MouseButton1Click:Connect(function()
         posModeBtn.Text = "Vị trí bám: Sau lưng (Behind)"
         posModeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 120)
     end
+end)
+
+local distRow = Instance.new("Frame", tab1)
+distRow.BackgroundTransparency = 1
+distRow.Size = UDim2.new(1, -5, 0, 26)
+
+local distLabel = Instance.new("TextLabel", distRow)
+distLabel.BackgroundTransparency = 1
+distLabel.Size = UDim2.new(0.5, 0, 1, 0)
+distLabel.Font = Enum.Font.SourceSans
+distLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+distLabel.TextSize = 11
+distLabel.Text = "Khoảng cách: 4"
+
+local minusDist = Instance.new("TextButton", distRow)
+minusDist.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+minusDist.Position = UDim2.new(0.52, 0, 0, 0)
+minusDist.Size = UDim2.new(0.22, 0, 1, 0)
+minusDist.Text = "-"
+minusDist.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", minusDist).CornerRadius = UDim.new(0, 4)
+
+local plusDist = Instance.new("TextButton", distRow)
+plusDist.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+plusDist.Position = UDim2.new(0.76, 0, 0, 0)
+plusDist.Size = UDim2.new(0.22, 0, 1, 0)
+plusDist.Text = "+"
+plusDist.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", plusDist).CornerRadius = UDim.new(0, 4)
+
+minusDist.MouseButton1Click:Connect(function()
+    distanceOffset = math.clamp(distanceOffset - 1, 1, 15)
+    distLabel.Text = "Khoảng cách: " .. distanceOffset
+end)
+plusDist.MouseButton1Click:Connect(function()
+    distanceOffset = math.clamp(distanceOffset + 1, 1, 15)
+    distLabel.Text = "Khoảng cách: " .. distanceOffset
 end)
 
 local modeBtn = Instance.new("TextButton", tab1)
@@ -327,7 +406,7 @@ for _, skill in ipairs(autoSkills) do
     end)
 end
 
--- ================= TAB 2: HỒI SINH =================
+-- ================= TAB 2: HỒI SINH & ANIMATION =================
 local tab2 = tabContentFrames[2]
 local l2 = Instance.new("UIListLayout", tab2) l2.Padding = UDim.new(0, 8)
 
@@ -337,53 +416,200 @@ respawnBtn.Size = UDim2.new(1, -5, 0, 35)
 respawnBtn.Font = Enum.Font.SourceSansBold
 respawnBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 respawnBtn.TextSize = 13
-respawnBtn.Text = "Hồi sinh tại chỗ vừa chết: OFF"
+respawnBtn.Text = "Hồi sinh tại chỗ kèm Animation: OFF"
 Instance.new("UICorner", respawnBtn).CornerRadius = UDim.new(0, 6)
 
 respawnBtn.MouseButton1Click:Connect(function()
     respawnAtDeathEnabled = not respawnAtDeathEnabled
-    respawnBtn.Text = respawnAtDeathEnabled and "Hồi sinh tại chỗ vừa chết: ON" or "Hồi sinh tại chỗ vừa chết: OFF"
+    respawnBtn.Text = respawnAtDeathEnabled and "Hồi sinh tại chỗ kèm Animation: ON" or "Hồi sinh tại chỗ kèm Animation: OFF"
     respawnBtn.BackgroundColor3 = respawnAtDeathEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
 local respawnInfo = Instance.new("TextLabel", tab2)
 respawnInfo.BackgroundTransparency = 1
-respawnInfo.Size = UDim2.new(1, -5, 0, 60)
+respawnInfo.Size = UDim2.new(1, -5, 0, 90)
 respawnInfo.Font = Enum.Font.SourceSans
 respawnInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
 respawnInfo.TextSize = 12
 respawnInfo.TextWrapped = true
-respawnInfo.Text = "• Khi bật, mỗi lần bạn chết, script sẽ lưu lại tọa độ và tự động dịch chuyển bạn về lại điểm đó kèm hiệu ứng hoạt ảnh hồi sinh mượt mà."
+respawnInfo.Text = "• Khi bật, khi bạn chết nhân vật sẽ khụy một bên gối xuống đất đầy nghệ thuật, bỏ qua ragdoll game. Khi hồi sinh, cơ thể sẽ được ráp nối tự nhiên từ Chân lên Đầu một cách cực kỳ sống động!"
 
--- ================= TAB 3: VISUAL & WALLHACK =================
+-- ================= TAB 3: MOVEMENT =================
 local tab3 = tabContentFrames[3]
 local l3 = Instance.new("UIListLayout", tab3) l3.Padding = UDim.new(0, 8)
 
-local wallhackBtn = Instance.new("TextButton", tab3)
-wallhackBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-wallhackBtn.Size = UDim2.new(1, -5, 0, 35)
-wallhackBtn.Font = Enum.Font.SourceSansBold
-wallhackBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-wallhackBtn.TextSize = 13
-wallhackBtn.Text = "Nhìn xuyên tường & Xóa vật cản: OFF"
-Instance.new("UICorner", wallhackBtn).CornerRadius = UDim.new(0, 6)
+local speedRow = Instance.new("Frame", tab3)
+speedRow.BackgroundTransparency = 1
+speedRow.Size = UDim2.new(1, -5, 0, 30)
+local speedLbl = Instance.new("TextLabel", speedRow)
+speedLbl.BackgroundTransparency = 1
+speedLbl.Size = UDim2.new(0.6, 0, 1, 0)
+speedLbl.Font = Enum.Font.SourceSansBold
+speedLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLbl.TextSize = 12
+speedLbl.Text = "Tốc độ chạy (WalkSpeed): 16"
 
-wallhackBtn.MouseButton1Click:Connect(function()
-    wallHackEnabled = not wallHackEnabled
-    wallhackBtn.Text = wallHackEnabled and "Nhìn xuyên tường & Xóa vật cản: ON" or "Nhìn xuyên tường & Xóa vật cản: OFF"
-    wallhackBtn.BackgroundColor3 = wallHackEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
-    
-    camera.CameraSubject = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    camera.FieldOfView = 70
+local speedPlus = Instance.new("TextButton", speedRow)
+speedPlus.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+speedPlus.Position = UDim2.new(0.8, 0, 0, 0)
+speedPlus.Size = UDim2.new(0.18, 0, 1, 0)
+speedPlus.Text = "+"
+speedPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", speedPlus).CornerRadius = UDim.new(0, 4)
+
+local speedMin = Instance.new("TextButton", speedRow)
+speedMin.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+speedMin.Position = UDim2.new(0.61, 0, 0, 0)
+speedMin.Size = UDim2.new(0.18, 0, 1, 0)
+speedMin.Text = "-"
+speedMin.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", speedMin).CornerRadius = UDim.new(0, 4)
+
+speedPlus.MouseButton1Click:Connect(function()
+    customWalkSpeed = math.clamp(customWalkSpeed + 4, 16, 120)
+    speedLbl.Text = "Tốc độ chạy: " .. customWalkSpeed
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = customWalkSpeed
+    end
+end)
+speedMin.MouseButton1Click:Connect(function()
+    customWalkSpeed = math.clamp(customWalkSpeed - 4, 16, 120)
+    speedLbl.Text = "Tốc độ chạy: " .. customWalkSpeed
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = customWalkSpeed
+    end
 end)
 
--- ================= TAB 4: TỔNG HỢP & KHÓA =================
+local jumpRow = Instance.new("Frame", tab3)
+jumpRow.BackgroundTransparency = 1
+jumpRow.Size = UDim2.new(1, -5, 0, 30)
+local jumpLbl = Instance.new("TextLabel", jumpRow)
+jumpLbl.BackgroundTransparency = 1
+jumpLbl.Size = UDim2.new(0.6, 0, 1, 0)
+jumpLbl.Font = Enum.Font.SourceSansBold
+jumpLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+jumpLbl.TextSize = 12
+jumpLbl.Text = "Độ cao nhảy (Jump): 50"
+
+local jumpPlus = Instance.new("TextButton", jumpRow)
+jumpPlus.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+jumpPlus.Position = UDim2.new(0.8, 0, 0, 0)
+jumpPlus.Size = UDim2.new(0.18, 0, 1, 0)
+jumpPlus.Text = "+"
+jumpPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", jumpPlus).CornerRadius = UDim.new(0, 4)
+
+local jumpMin = Instance.new("TextButton", jumpRow)
+jumpMin.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+jumpMin.Position = UDim2.new(0.61, 0, 0, 0)
+jumpMin.Size = UDim2.new(0.18, 0, 1, 0)
+jumpMin.Text = "-"
+jumpMin.TextColor3 = Color3.fromRGB(255, 255, 255)
+Instance.new("UICorner", jumpMin).CornerRadius = UDim.new(0, 4)
+
+jumpPlus.MouseButton1Click:Connect(function()
+    customJumpPower = math.clamp(customJumpPower + 10, 50, 300)
+    jumpLbl.Text = "Độ cao nhảy: " .. customJumpPower
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character.Humanoid.JumpPower = customJumpPower
+    end
+end)
+jumpMin.MouseButton1Click:Connect(function()
+    customJumpPower = math.clamp(customJumpPower - 10, 50, 300)
+    jumpLbl.Text = "Độ cao nhảy: " .. customJumpPower
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character.Humanoid.JumpPower = customJumpPower
+    end
+end)
+
+local infJumpBtn = Instance.new("TextButton", tab3)
+infJumpBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+infJumpBtn.Size = UDim2.new(1, -5, 0, 32)
+infJumpBtn.Font = Enum.Font.SourceSansBold
+infJumpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+infJumpBtn.TextSize = 12
+infJumpBtn.Text = "Nhảy vô hạn trên không (Inf Jump): OFF"
+Instance.new("UICorner", infJumpBtn).CornerRadius = UDim.new(0, 4)
+
+infJumpBtn.MouseButton1Click:Connect(function()
+    infiniteJumpEnabled = not infiniteJumpEnabled
+    infJumpBtn.Text = infiniteJumpEnabled and "Nhảy vô hạn trên không (Inf Jump): ON" or "Nhảy vô hạn trên không (Inf Jump): OFF"
+    infJumpBtn.BackgroundColor3 = infiniteJumpEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if infiniteJumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+-- ================= TAB 4: DỊCH CHUYỂN =================
 local tab4 = tabContentFrames[4]
 local l4 = Instance.new("UIListLayout", tab4) l4.Padding = UDim.new(0, 8)
 
-local invisBtn = Instance.new("TextButton", tab4)
+local tpMountainBtn = Instance.new("TextButton", tab4)
+tpMountainBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 180)
+tpMountainBtn.Size = UDim2.new(1, -5, 0, 35)
+tpMountainBtn.Font = Enum.Font.SourceSansBold
+tpMountainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+tpMountainBtn.TextSize = 12
+tpMountainBtn.Text = "Bay lên Ngọn núi TSB ngay lập tức"
+Instance.new("UICorner", tpMountainBtn).CornerRadius = UDim.new(0, 6)
+
+tpMountainBtn.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = tsbMountainWaypoint
+    end
+end)
+
+-- ================= TAB 5: VISUAL & ESP =================
+local tab5 = tabContentFrames[5]
+local l5 = Instance.new("UIListLayout", tab5) l5.Padding = UDim.new(0, 8)
+
+local espBtn = Instance.new("TextButton", tab5)
+espBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+espBtn.Size = UDim2.new(1, -5, 0, 32)
+espBtn.Font = Enum.Font.SourceSansBold
+espBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+espBtn.TextSize = 12
+espBtn.Text = "ESP Toàn bộ người chơi: OFF"
+Instance.new("UICorner", espBtn).CornerRadius = UDim.new(0, 4)
+
+espBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    espBtn.Text = espEnabled and "ESP Toàn bộ người chơi: ON" or "ESP Toàn bộ người chơi: OFF"
+    espBtn.BackgroundColor3 = espEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
+end)
+
+local smartCameraBtn = Instance.new("TextButton", tab5)
+smartCameraBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+smartCameraBtn.Size = UDim2.new(1, -5, 0, 32)
+smartCameraBtn.Font = Enum.Font.SourceSansBold
+smartCameraBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+smartCameraBtn.TextSize = 12
+smartCameraBtn.Text = "Xray vật thể che khuất camera (80% Mờ): OFF"
+Instance.new("UICorner", smartCameraBtn).CornerRadius = UDim.new(0, 4)
+
+smartCameraBtn.MouseButton1Click:Connect(function()
+    wallhackEnabled = not wallhackEnabled
+    smartCameraBtn.Text = wallhackEnabled and "Xray vật thể che khuất camera (80% Mờ): ON" or "Xray vật thể che khuất camera (80% Mờ): OFF"
+    smartCameraBtn.BackgroundColor3 = wallhackEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
+    
+    if not wallhackEnabled then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then obj.Transparency = 0 end
+        end
+    end
+end)
+
+-- ================= TAB 6: CÀI ĐẶT & KHÓA NÚT =================
+local tab6 = tabContentFrames[6]
+local l6 = Instance.new("UIListLayout", tab6) l6.Padding = UDim.new(0, 8)
+
+local invisBtn = Instance.new("TextButton", tab6)
 invisBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-invisBtn.Size = UDim2.new(1, -5, 0, 30)
+invisBtn.Size = UDim2.new(1, -5, 0, 32)
 invisBtn.Font = Enum.Font.SourceSansBold
 invisBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 invisBtn.TextSize = 12
@@ -397,9 +623,9 @@ invisBtn.MouseButton1Click:Connect(function()
     setTrueInvisibility(invisibilityEnabled)
 end)
 
-local antiVoidBtn = Instance.new("TextButton", tab4)
+local antiVoidBtn = Instance.new("TextButton", tab6)
 antiVoidBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-antiVoidBtn.Size = UDim2.new(1, -5, 0, 30)
+antiVoidBtn.Size = UDim2.new(1, -5, 0, 32)
 antiVoidBtn.Font = Enum.Font.SourceSansBold
 antiVoidBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 antiVoidBtn.TextSize = 12
@@ -412,9 +638,9 @@ antiVoidBtn.MouseButton1Click:Connect(function()
     antiVoidBtn.BackgroundColor3 = antiVoidEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
-local voidExecBtn = Instance.new("TextButton", tab4)
+local voidExecBtn = Instance.new("TextButton", tab6)
 voidExecBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-voidExecBtn.Size = UDim2.new(1, -5, 0, 30)
+voidExecBtn.Size = UDim2.new(1, -5, 0, 32)
 voidExecBtn.Font = Enum.Font.SourceSansBold
 voidExecBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 voidExecBtn.TextSize = 12
@@ -427,9 +653,9 @@ voidExecBtn.MouseButton1Click:Connect(function()
     voidExecBtn.BackgroundColor3 = voidExecuterEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
-local lockUiBtn = Instance.new("TextButton", tab4)
+local lockUiBtn = Instance.new("TextButton", tab6)
 lockUiBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-lockUiBtn.Size = UDim2.new(1, -5, 0, 30)
+lockUiBtn.Size = UDim2.new(1, -5, 0, 32)
 lockUiBtn.Font = Enum.Font.SourceSansBold
 lockUiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 lockUiBtn.TextSize = 12
@@ -508,7 +734,6 @@ selectBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Hàm tìm kiếm theo Textbox (Chế độ 2)
 local function findTargetByText(query)
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and (p.DisplayName and string.lower(p.DisplayName):sub(1, #query) == string.lower(query) or string.lower(p.Name):sub(1, #query) == string.lower(query)) then
@@ -545,7 +770,7 @@ local function getLowestHealthPlayer()
     return lowestP
 end
 
--- ================= VÒNG LẶP CHÍNH =================
+-- ================= VÒNG LẶP CHÍNH (RENDER STEPPED) =================
 RunService.RenderStepped:Connect(function()
     if antiVoidEnabled then
         local char = player.Character
@@ -557,14 +782,31 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if wallHackEnabled then
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildOfClass("Humanoid") then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum.Health > 0 then
+            deathPosition = char.HumanoidRootPart.CFrame
+        end
+    end
+
+    if wallhackEnabled and char and char:FindFirstChild("HumanoidRootPart") then
         pcall(function()
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj:IsA("BasePart") and not obj:IsDescendantOf(player.Character) then
-                    obj.Transparency = 0.65
-                end
+            local headPos = camera.CFrame.Position
+            local charPos = char.HumanoidRootPart.Position
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterType = RaycastParams.RaycastType.Exclude
+            raycastParams.FilterDescendantsInstances = {char}
+            
+            local result = Workspace:Raycast(headPos, charPos - headPos, raycastParams)
+            if result and result.Instance and result.Instance:IsA("BasePart") then
+                result.Instance.Transparency = 0.8
             end
         end)
+    end
+
+    if invisibilityEnabled then
+        setTrueInvisibility(true)
     end
 
     if not isEnabled or not isFollowing then return end
@@ -593,7 +835,6 @@ RunService.RenderStepped:Connect(function()
         return
     end
     
-    local char = player.Character
     local targetChar = targetPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
@@ -616,34 +857,69 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Xử lý Hồi sinh tại chỗ kèm Animation
+-- XỬ LÝ ANIMATION KHI CHẾT (KHỤY GỐI) VÀ HỒI SINH TỰ NHIÊN TỪ CHÂN ĐẾN ĐẦU
 player.CharacterAdded:Connect(function(newChar)
-    task.wait(0.5)
+    task.wait(0.1)
     if respawnAtDeathEnabled and deathPosition then
-        isRespawning = true
         local hrp = newChar:WaitForChild("HumanoidRootPart", 2)
-        if hrp then
-            -- Animation hiệu ứng mờ / biến hình hồi sinh tại chỗ
+        local hum = newChar:WaitForChild("Humanoid", 2)
+        local leftLeg = newChar:FindFirstChild("Left Leg") or newChar:FindFirstChild("LeftLowerLeg")
+        local rightLeg = newChar:FindFirstChild("Right Leg") or newChar:FindFirstChild("RightLowerLeg")
+        local torso = newChar:FindFirstChild("Torso") or newChar:FindFirstChild("UpperTorso")
+        local head = newChar:FindFirstChild("Head")
+        
+        if hrp and hum then
+            -- Tạm thời đóng băng hoặc vô hiệu hóa điều khiển để chạy animation ráp nối
+            hum.WalkSpeed = 0
+            hum.JumpPower = 0
+            hrp.CFrame = deathPosition
+            
+            -- Hiệu ứng ráp nối tự nhiên từ chân lên đến đầu (Bottom-to-Top Assembly)
+            local partsToAssemble = {leftLeg, rightLeg, torso, head}
             for _, part in ipairs(newChar:GetDescendants()) do
                 if part:IsA("BasePart") then part.Transparency = 1 end
             end
-            hrp.CFrame = deathPosition
-            task.wait(0.4)
+            
+            task.wait(0.2)
+            -- Lần lượt hiện và hút các bộ phận từ dưới lên trên
+            for _, p in ipairs(partsToAssemble) do
+                if p and p:IsA("BasePart") then
+                    p.Transparency = invisibilityEnabled and 1 or 0
+                    task.wait(0.12) -- Độ trễ tự nhiên giữa các bộ phận
+                end
+            end
+            
+            -- Hiện toàn bộ phần còn lại và trả lại tốc độ
             for _, part in ipairs(newChar:GetDescendants()) do
                 if part:IsA("BasePart") then part.Transparency = invisibilityEnabled and 1 or 0 end
             end
+            hum.WalkSpeed = customWalkSpeed
+            hum.JumpPower = customJumpPower
         end
-        isRespawning = false
     end
     if invisibilityEnabled then setTrueInvisibility(true) end
 end)
 
--- Lắng nghe sự kiện chết để lưu tọa độ
+-- Lắng nghe sự kiện chết để kích hoạt Animation Khụy Gối
 player.CharacterAppearanceLoaded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid")
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    
     hum.Died:Connect(function()
-        if char:FindFirstChild("HumanoidRootPart") then
-            deathPosition = char.HumanoidRootPart.CFrame
+        if respawnAtDeathEnabled then
+            deathPosition = hrp.CFrame
+            pcall(function()
+                -- Animation khụy một bên gối xuống đất trước khi biến mất
+                local leftLeg = char:FindFirstChild("Left Leg") or char:FindFirstChild("LeftLowerLeg")
+                local rightLeg = char:FindFirstChild("Right Leg") or char:FindFirstChild("RightLowerLeg")
+                local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+                
+                if hrp and torso then
+                    hrp.Anchored = true
+                    -- Xoay ngả người và hạ thấp trọng tâm xuống đất tạo dáng khụy gối
+                    hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(45), 0, 0) + Vector3.new(0, -2, 0)
+                end
+            end)
         end
     end)
 end)
@@ -682,4 +958,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
-print("Advanced Mobile Menu v20 Loaded Successfully!")
+print("Advanced Mobile Menu v22 Loaded Successfully!")
