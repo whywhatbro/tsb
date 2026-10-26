@@ -1,4 +1,4 @@
--- Advanced Mobile Menu v22 (TSB Ultimate: Custom Kneeling Death Animation & Natural Bottom-to-Top Assembly Resurrection)
+-- Advanced Mobile Menu v23 (TSB Ultimate: Fixed Camera/Lighting, Fixed Movement/Jump, Persistent Target UI & Fling Exploit)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -6,11 +6,12 @@ local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
-if CoreGui:FindFirstChild("AdvancedMobileMenuV22") then
-    CoreGui.AdvancedMobileMenuV22:Destroy()
+if CoreGui:FindFirstChild("AdvancedMobileMenuV23") then
+    CoreGui.AdvancedMobileMenuV23:Destroy()
 end
 
 -- Trạng thái tổng hợp
@@ -34,10 +35,7 @@ local customJumpPower = 50
 local infiniteJumpEnabled = false
 
 local deathPosition = nil
-local isCustomRespawning = false
-
--- Waypoint ngọn núi nổi tiếng trong TSB
-local tsbMountainWaypoint = CFrame.new(120, 450, 450)
+local tsbMountainWaypoint = CFrame.new(120, 350, -450)
 
 local autoSkills = {
     {key = "One", name = "Skill 1 (1)", enabled = false, isGrab = true},
@@ -105,7 +103,7 @@ end
 
 -- Tạo ScreenGui chính
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TSB👾"
+screenGui.Name = "AdvancedMobileMenuV23"
 screenGui.Parent = CoreGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -144,7 +142,7 @@ resetBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Nút hành động bay lên núi siêu nhanh
+-- Nút Bay Lên Núi
 local flyMountainBtn = Instance.new("TextButton", screenGui)
 flyMountainBtn.Name = "FlyMountainBtn"
 flyMountainBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
@@ -182,7 +180,6 @@ flyMountainBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Hàm kéo thả độc lập
 local function makeDraggable(guiObject)
     local dragging, dragStart, startPos
     guiObject.InputBegan:Connect(function(input)
@@ -224,10 +221,10 @@ title.Size = UDim2.new(1, 0, 0, 30)
 title.Font = Enum.Font.SourceSansBold
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 12
-title.Text = "  ☰ TSB MOBILE MENU v22 (Custom Death & Resurrection Animation)"
+title.Text = "  ☰ TSB MOBILE MENU v23 (Fixed Lighting, Movement & Fling Target UI)"
 Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
 
--- THANH TAB CHUYỂN ĐỔI (6 Tabs)
+-- THANH TAB (6 Tabs)
 local tabButtonsFrame = Instance.new("Frame", mainFrame)
 tabButtonsFrame.BackgroundTransparency = 1
 tabButtonsFrame.Position = UDim2.new(0, 10, 0, 35)
@@ -406,7 +403,7 @@ for _, skill in ipairs(autoSkills) do
     end)
 end
 
--- ================= TAB 2: HỒI SINH & ANIMATION =================
+-- ================= TAB 2: HỒI SINH =================
 local tab2 = tabContentFrames[2]
 local l2 = Instance.new("UIListLayout", tab2) l2.Padding = UDim.new(0, 8)
 
@@ -425,19 +422,11 @@ respawnBtn.MouseButton1Click:Connect(function()
     respawnBtn.BackgroundColor3 = respawnAtDeathEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
-local respawnInfo = Instance.new("TextLabel", tab2)
-respawnInfo.BackgroundTransparency = 1
-respawnInfo.Size = UDim2.new(1, -5, 0, 90)
-respawnInfo.Font = Enum.Font.SourceSans
-respawnInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
-respawnInfo.TextSize = 12
-respawnInfo.TextWrapped = true
-respawnInfo.Text = "• Khi bật, khi bạn chết nhân vật sẽ khụy một bên gối xuống đất đầy nghệ thuật, bỏ qua ragdoll game. Khi hồi sinh, cơ thể sẽ được ráp nối tự nhiên từ Chân lên Đầu một cách cực kỳ sống động!"
-
 -- ================= TAB 3: MOVEMENT =================
 local tab3 = tabContentFrames[3]
 local l3 = Instance.new("UIListLayout", tab3) l3.Padding = UDim.new(0, 8)
 
+-- Tốc độ chạy (Fix triệt để cho TSB bằng cách bám theo RenderStepped)
 local speedRow = Instance.new("Frame", tab3)
 speedRow.BackgroundTransparency = 1
 speedRow.Size = UDim2.new(1, -5, 0, 30)
@@ -447,7 +436,7 @@ speedLbl.Size = UDim2.new(0.6, 0, 1, 0)
 speedLbl.Font = Enum.Font.SourceSansBold
 speedLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedLbl.TextSize = 12
-speedLbl.Text = "Tốc độ chạy (WalkSpeed): 16"
+speedLbl.Text = "Tốc độ chạy: 16"
 
 local speedPlus = Instance.new("TextButton", speedRow)
 speedPlus.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
@@ -468,18 +457,13 @@ Instance.new("UICorner", speedMin).CornerRadius = UDim.new(0, 4)
 speedPlus.MouseButton1Click:Connect(function()
     customWalkSpeed = math.clamp(customWalkSpeed + 4, 16, 120)
     speedLbl.Text = "Tốc độ chạy: " .. customWalkSpeed
-    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character.Humanoid.WalkSpeed = customWalkSpeed
-    end
 end)
 speedMin.MouseButton1Click:Connect(function()
     customWalkSpeed = math.clamp(customWalkSpeed - 4, 16, 120)
     speedLbl.Text = "Tốc độ chạy: " .. customWalkSpeed
-    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character.Humanoid.WalkSpeed = customWalkSpeed
-    end
 end)
 
+-- Nhảy cao (Sử dụng JumpPower kết hợp Impulse)
 local jumpRow = Instance.new("Frame", tab3)
 jumpRow.BackgroundTransparency = 1
 jumpRow.Size = UDim2.new(1, -5, 0, 30)
@@ -489,7 +473,7 @@ jumpLbl.Size = UDim2.new(0.6, 0, 1, 0)
 jumpLbl.Font = Enum.Font.SourceSansBold
 jumpLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 jumpLbl.TextSize = 12
-jumpLbl.Text = "Độ cao nhảy (Jump): 50"
+jumpLbl.Text = "Độ cao nhảy: 50"
 
 local jumpPlus = Instance.new("TextButton", jumpRow)
 jumpPlus.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
@@ -508,18 +492,12 @@ jumpMin.TextColor3 = Color3.fromRGB(255, 255, 255)
 Instance.new("UICorner", jumpMin).CornerRadius = UDim.new(0, 4)
 
 jumpPlus.MouseButton1Click:Connect(function()
-    customJumpPower = math.clamp(customJumpPower + 10, 50, 300)
+    customJumpPower = math.clamp(customJumpPower + 15, 50, 350)
     jumpLbl.Text = "Độ cao nhảy: " .. customJumpPower
-    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character.Humanoid.JumpPower = customJumpPower
-    end
 end)
 jumpMin.MouseButton1Click:Connect(function()
-    customJumpPower = math.clamp(customJumpPower - 10, 50, 300)
+    customJumpPower = math.clamp(customJumpPower - 15, 50, 350)
     jumpLbl.Text = "Độ cao nhảy: " .. customJumpPower
-    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character.Humanoid.JumpPower = customJumpPower
-    end
 end)
 
 local infJumpBtn = Instance.new("TextButton", tab3)
@@ -582,28 +560,34 @@ espBtn.MouseButton1Click:Connect(function()
     espBtn.BackgroundColor3 = espEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
+-- Xray Camera Thông Minh (Fix lỗi tối om màn hình, chỉ làm mờ vật thể che khuất và vô hiệu hóa va chạm camera)
 local smartCameraBtn = Instance.new("TextButton", tab5)
 smartCameraBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
 smartCameraBtn.Size = UDim2.new(1, -5, 0, 32)
 smartCameraBtn.Font = Enum.Font.SourceSansBold
 smartCameraBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 smartCameraBtn.TextSize = 12
-smartCameraBtn.Text = "Xray vật thể che khuất camera (80% Mờ): OFF"
+smartCameraBtn.Text = "Xray vật thể che khuất camera: OFF"
 Instance.new("UICorner", smartCameraBtn).CornerRadius = UDim.new(0, 4)
 
 smartCameraBtn.MouseButton1Click:Connect(function()
     wallhackEnabled = not wallhackEnabled
-    smartCameraBtn.Text = wallhackEnabled and "Xray vật thể che khuất camera (80% Mờ): ON" or "Xray vật thể che khuất camera (80% Mờ): OFF"
+    smartCameraBtn.Text = wallhackEnabled and "Xray vật thể che khuất camera: ON" or "Xray vật thể che khuất camera: OFF"
     smartCameraBtn.BackgroundColor3 = wallhackEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
     
-    if not wallhackEnabled then
+    if wallhackEnabled then
+        player.CameraMinZoomDistance = 0.5
+        player.CameraMaxZoomDistance = 400
+    else
         for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") then obj.Transparency = 0 end
+            if obj:IsA("BasePart") and obj.Transparency == 0.8 then
+                obj.Transparency = 0
+            end
         end
     end
 end)
 
--- ================= TAB 6: CÀI ĐẶT & KHÓA NÚT =================
+-- ================= TAB 6: CÀI ĐẶT =================
 local tab6 = tabContentFrames[6]
 local l6 = Instance.new("UIListLayout", tab6) l6.Padding = UDim.new(0, 8)
 
@@ -668,39 +652,63 @@ lockUiBtn.MouseButton1Click:Connect(function()
     lockUiBtn.BackgroundColor3 = uiLocked and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
--- ================= HỆ THỐNG CLICK CHỌN NHÂN VẬT (CHẾ ĐỘ 1) =================
+-- ================= HỆ THỐNG BẢNG CỐ ĐỊNH CHỌN MỤC TIÊU & FLING =================
 local clickPopup = Instance.new("Frame", screenGui)
-clickPopup.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-clickPopup.Size = UDim2.new(0, 180, 0, 100)
+clickPopup.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+clickPopup.Position = UDim2.new(0.5, -110, 0.05, 0)
+clickPopup.Size = UDim2.new(0, 220, 0, 160)
 clickPopup.Visible = false
 Instance.new("UICorner", clickPopup).CornerRadius = UDim.new(0, 8)
 
-local popupText = Instance.new("TextLabel", clickPopup)
-popupText.BackgroundTransparency = 1
-popupText.Size = UDim2.new(1, 0, 0, 35)
-popupText.Font = Enum.Font.SourceSansBold
-popupText.TextColor3 = Color3.fromRGB(255, 255, 255)
-popupText.TextSize = 12
-popupText.Text = "Chọn Mục Tiêu"
+local popupTitle = Instance.new("TextLabel", clickPopup)
+popupTitle.BackgroundTransparency = 1
+popupTitle.Size = UDim2.new(1, 0, 0, 30)
+popupTitle.Font = Enum.Font.SourceSansBold
+popupTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+popupTitle.TextSize = 13
+popupTitle.Text = "Đang chọn: [Chưa chọn]"
 
-local selectBtn = Instance.new("TextButton", clickPopup)
-selectBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 40)
-selectBtn.Position = UDim2.new(0, 10, 0, 40)
-selectBtn.Size = UDim2.new(1, -20, 0, 25)
-selectBtn.Font = Enum.Font.SourceSansBold
-selectBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-selectBtn.TextSize = 11
-selectBtn.Text = "Bám đuổi mục tiêu này"
-Instance.new("UICorner", selectBtn).CornerRadius = UDim.new(0, 4)
+-- Nút Bay ra sau
+local btnBehind = Instance.new("TextButton", clickPopup)
+btnBehind.BackgroundColor3 = Color3.fromRGB(60, 60, 120)
+btnBehind.Position = UDim2.new(0, 10, 0, 35)
+btnBehind.Size = UDim2.new(1, -20, 0, 26)
+btnBehind.Font = Enum.Font.SourceSansBold
+btnBehind.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnBehind.TextSize = 11
+btnBehind.Text = "Bay bám đuổi (Sau lưng)"
+Instance.new("UICorner", btnBehind).CornerRadius = UDim.new(0, 4)
+
+-- Nút Bay dưới chân
+local btnFeet = Instance.new("TextButton", clickPopup)
+btnFeet.BackgroundColor3 = Color3.fromRGB(120, 60, 60)
+btnFeet.Position = UDim2.new(0, 10, 0, 65)
+btnFeet.Size = UDim2.new(1, -20, 0, 26)
+btnFeet.Font = Enum.Font.SourceSansBold
+btnFeet.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFeet.TextSize = 11
+btnFeet.Text = "Bay bám đuổi (Dưới chân)"
+Instance.new("UICorner", btnFeet).CornerRadius = UDim.new(0, 4)
+
+-- Nút Fling (Hất văng khỏi map)
+local btnFling = Instance.new("TextButton", clickPopup)
+btnFling.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+btnFling.Position = UDim2.new(0, 10, 0, 95)
+btnFling.Size = UDim2.new(1, -20, 0, 26)
+btnFling.Font = Enum.Font.SourceSansBold
+btnFling.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnFling.TextSize = 11
+btnFling.Text = "FLING (Hất văng khỏi map)"
+Instance.new("UICorner", btnFling).CornerRadius = UDim.new(0, 4)
 
 local closePopupBtn = Instance.new("TextButton", clickPopup)
-closePopupBtn.BackgroundColor3 = Color3.fromRGB(140, 40, 40)
-closePopupBtn.Position = UDim2.new(0, 10, 0, 70)
-closePopupBtn.Size = UDim2.new(1, -20, 0, 22)
+closePopupBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+closePopupBtn.Position = UDim2.new(0, 10, 0, 125)
+closePopupBtn.Size = UDim2.new(1, -20, 0, 24)
 closePopupBtn.Font = Enum.Font.SourceSansBold
 closePopupBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closePopupBtn.TextSize = 11
-closePopupBtn.Text = "Đóng"
+closePopupBtn.Text = "Đóng bảng"
 Instance.new("UICorner", closePopupBtn).CornerRadius = UDim.new(0, 4)
 
 closePopupBtn.MouseButton1Click:Connect(function() clickPopup.Visible = false end)
@@ -715,22 +723,57 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             local p = Players:GetPlayerFromCharacter(char)
             if p and p ~= player then
                 selectedClickedPlayer = p
-                popupText.Text = "Địch: " .. p.Name
-                clickPopup.Position = UDim2.new(0, mouse.X + 10, 0, mouse.Y + 10)
+                popupTitle.Text = "Đang chọn: " .. p.Name
                 clickPopup.Visible = true
             end
         end
     end
 end)
 
-selectBtn.MouseButton1Click:Connect(function()
+btnBehind.MouseButton1Click:Connect(function()
     if selectedClickedPlayer then
         targetPlayer = selectedClickedPlayer
+        followPositionMode = "Behind"
         isEnabled = true
         isFollowing = true
         powerBtn.Text = "Bám đuổi: ON"
         powerBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
         clickPopup.Visible = false
+    end
+end)
+
+btnFeet.MouseButton1Click:Connect(function()
+    if selectedClickedPlayer then
+        targetPlayer = selectedClickedPlayer
+        followPositionMode = "Feet"
+        isEnabled = true
+        isFollowing = true
+        powerBtn.Text = "Bám đuổi: ON"
+        powerBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
+        clickPopup.Visible = false
+    end
+end)
+
+-- Chức năng Fling bay tới hất văng địch khỏi map
+btnFling.MouseButton1Click:Connect(function()
+    if selectedClickedPlayer and selectedClickedPlayer.Character and selectedClickedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local hrp = char.HumanoidRootPart
+            local targetHRP = selectedClickedPlayer.Character.HumanoidRootPart
+            
+            task.spawn(function()
+                local startTime = tick()
+                while tick() - startTime < 1.5 do
+                    if targetHRP and hrp then
+                        hrp.CFrame = targetHRP.CFrame * CFrame.Angles(math.random(0,360), math.random(0,360), math.random(0,360))
+                        hrp.Velocity = Vector3.new(99999, 99999, 99999)
+                    end
+                    RunService.RenderStepped:Wait()
+                end
+            end)
+            clickPopup.Visible = false
+        end
     end
 end)
 
@@ -788,8 +831,13 @@ RunService.RenderStepped:Connect(function()
         if hum.Health > 0 then
             deathPosition = char.HumanoidRootPart.CFrame
         end
+
+        -- Fix tốc độ chạy và nhảy cao hoạt động mượt mà trong TSB
+        hum.WalkSpeed = customWalkSpeed
+        hum.JumpPower = customJumpPower
     end
 
+    -- Xray Camera Thông Minh (Chỉ làm mờ vật thể che khuất cơ thể khỏi camera)
     if wallhackEnabled and char and char:FindFirstChild("HumanoidRootPart") then
         pcall(function()
             local headPos = camera.CFrame.Position
@@ -857,9 +905,9 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- XỬ LÝ ANIMATION KHI CHẾT (KHỤY GỐI) VÀ HỒI SINH TỰ NHIÊN TỪ CHÂN ĐẾN ĐẦU
+-- Hồi sinh tại chỗ kèm Animation
 player.CharacterAdded:Connect(function(newChar)
-    task.wait(0.1)
+    task.wait(0.4)
     if respawnAtDeathEnabled and deathPosition then
         local hrp = newChar:WaitForChild("HumanoidRootPart", 2)
         local hum = newChar:WaitForChild("Humanoid", 2)
@@ -869,27 +917,23 @@ player.CharacterAdded:Connect(function(newChar)
         local head = newChar:FindFirstChild("Head")
         
         if hrp and hum then
-            -- Tạm thời đóng băng hoặc vô hiệu hóa điều khiển để chạy animation ráp nối
             hum.WalkSpeed = 0
             hum.JumpPower = 0
             hrp.CFrame = deathPosition
             
-            -- Hiệu ứng ráp nối tự nhiên từ chân lên đến đầu (Bottom-to-Top Assembly)
             local partsToAssemble = {leftLeg, rightLeg, torso, head}
             for _, part in ipairs(newChar:GetDescendants()) do
                 if part:IsA("BasePart") then part.Transparency = 1 end
             end
             
             task.wait(0.2)
-            -- Lần lượt hiện và hút các bộ phận từ dưới lên trên
             for _, p in ipairs(partsToAssemble) do
                 if p and p:IsA("BasePart") then
                     p.Transparency = invisibilityEnabled and 1 or 0
-                    task.wait(0.12) -- Độ trễ tự nhiên giữa các bộ phận
+                    task.wait(0.12)
                 end
             end
             
-            -- Hiện toàn bộ phần còn lại và trả lại tốc độ
             for _, part in ipairs(newChar:GetDescendants()) do
                 if part:IsA("BasePart") then part.Transparency = invisibilityEnabled and 1 or 0 end
             end
@@ -900,7 +944,6 @@ player.CharacterAdded:Connect(function(newChar)
     if invisibilityEnabled then setTrueInvisibility(true) end
 end)
 
--- Lắng nghe sự kiện chết để kích hoạt Animation Khụy Gối
 player.CharacterAppearanceLoaded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid")
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -909,14 +952,9 @@ player.CharacterAppearanceLoaded:Connect(function(char)
         if respawnAtDeathEnabled then
             deathPosition = hrp.CFrame
             pcall(function()
-                -- Animation khụy một bên gối xuống đất trước khi biến mất
-                local leftLeg = char:FindFirstChild("Left Leg") or char:FindFirstChild("LeftLowerLeg")
-                local rightLeg = char:FindFirstChild("Right Leg") or char:FindFirstChild("RightLowerLeg")
-                local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-                
-                if hrp and torso then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
                     hrp.Anchored = true
-                    -- Xoay ngả người và hạ thấp trọng tâm xuống đất tạo dáng khụy gối
                     hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(45), 0, 0) + Vector3.new(0, -2, 0)
                 end
             end)
@@ -924,7 +962,7 @@ player.CharacterAppearanceLoaded:Connect(function(char)
     end)
 end)
 
--- Vòng lặp Combat (Auto M1 & Skills)
+-- Vòng lặp Combat
 task.spawn(function()
     while true do
         task.wait(0.15)
@@ -958,4 +996,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
-print("Advanced Mobile Menu v22 Loaded Successfully!")
+print("Advanced Mobile Menu v23 Loaded Successfully!")
