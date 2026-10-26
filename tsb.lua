@@ -1,4 +1,4 @@
--- Advanced Mobile Menu v23 (TSB Ultimate: Fixed Camera/Lighting, Fixed Movement/Jump, Persistent Target UI & Fling Exploit)
+-- Advanced Mobile Menu v24 (TSB Ultimate: Box ESP, Mountain Kidnap Garou Skills, Perfect Death Respawn & Zombieman Disintegrate Animation)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -6,12 +6,11 @@ local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Workspace = game:GetService("Workspace")
-local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
-if CoreGui:FindFirstChild("AdvancedMobileMenuV23") then
-    CoreGui.AdvancedMobileMenuV23:Destroy()
+if CoreGui:FindFirstChild("AdvancedMobileMenuV24") then
+    CoreGui.AdvancedMobileMenuV24:Destroy()
 end
 
 -- Trạng thái tổng hợp
@@ -67,7 +66,76 @@ local function setTrueInvisibility(state)
     end
 end
 
--- Aim & Void Executer
+-- ESP Box & Text Holder
+local espDrawings = {}
+local function clearESP()
+    for _, obj in pairs(espDrawings) do
+        if obj then pcall(function() obj:Remove() end) end
+    end
+    espDrawings = {}
+end
+
+local function updateESP()
+    if not espEnabled then
+        clearESP()
+        return
+    end
+    
+    local activePlayers = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum.Health > 0 then
+                activePlayers[p] = true
+                local hrp = p.Character.HumanoidRootPart
+                local vector, onScreen = camera:WorldToViewportPoint(hrp.Position)
+                
+                if not espDrawings[p] then
+                    local box = Drawing.new("Square")
+                    box.Visible = false
+                    box.Color = Color3.fromRGB(255, 50, 50)
+                    box.Thickness = 1.5
+                    box.Filled = false
+                    
+                    local nameTag = Drawing.new("Text")
+                    nameTag.Visible = false
+                    nameTag.Color = Color3.fromRGB(255, 255, 255)
+                    nameTag.Size = 13
+                    nameTag.Center = true
+                    nameTag.Outline = true
+                    
+                    espDrawings[p] = {Box = box, Text = nameTag}
+                end
+                
+                local visuals = espDrawings[p]
+                if onScreen then
+                    local sizeX = math.clamp(2500 / vector.Z, 15, 120)
+                    local sizeY = math.clamp(3500 / vector.Z, 25, 180)
+                    visuals.Box.Size = Vector2.new(sizeX, sizeY)
+                    visuals.Box.Position = Vector2.new(vector.X - sizeX / 2, vector.Y - sizeY / 2)
+                    visuals.Box.Visible = true
+                    
+                    visuals.Text.Text = p.Name .. " (" .. math.floor(hum.Health) .. " HP)"
+                    visuals.Text.Position = Vector2.new(vector.X, vector.Y - sizeY / 2 - 18)
+                    visuals.Text.Visible = true
+                else
+                    visuals.Box.Visible = false
+                    visuals.Text.Visible = false
+                end
+            end
+        end
+    end
+    
+    for p, visuals in pairs(espDrawings) do
+        if not activePlayers[p] then
+            if visuals.Box then visuals.Box:Remove() end
+            if visuals.Text then visuals.Text:Remove() end
+            espDrawings[p] = nil
+        end
+    end
+end
+
+-- Aim & Void Executer (Tóm và kéo người chơi cùng khi bay)
 local function aimAndPressKey(skillObj, targetChar)
     local keyCode = Enum.KeyCode[skillObj.key]
     if keyCode and targetChar and targetChar:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -103,11 +171,10 @@ end
 
 -- Tạo ScreenGui chính
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TSB"
+screenGui.Name = "AdvancedMobileMenuV24"
 screenGui.Parent = CoreGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Nút Menu Tròn
 local toggleBtn = Instance.new("TextButton", screenGui)
 toggleBtn.Name = "ToggleBtn"
 toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
@@ -119,7 +186,6 @@ toggleBtn.TextSize = 13
 toggleBtn.Text = "Menu"
 Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
 
--- Nút Reset Nổi
 local resetBtn = Instance.new("TextButton", screenGui)
 resetBtn.Name = "ResetBtn"
 resetBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
@@ -142,7 +208,7 @@ resetBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Nút Bay Lên Núi
+-- Nút Bay Lên Núi (Kèm kéo theo mục tiêu đang chọn bằng Garou Skill 1/2 không nộ)
 local flyMountainBtn = Instance.new("TextButton", screenGui)
 flyMountainBtn.Name = "FlyMountainBtn"
 flyMountainBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
@@ -161,13 +227,24 @@ flyMountainBtn.MouseButton1Click:Connect(function()
         local startPos = hrp.Position
         local targetPos = tsbMountainWaypoint.Position
         
+        local targetHRP = nil
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            targetHRP = targetPlayer.Character.HumanoidRootPart
+        end
+        
         local steps = 15
         for i = 1, steps do
-            hrp.CFrame = CFrame.new(startPos:Lerp(targetPos, i / steps))
+            local currentLerp = startPos:Lerp(targetPos, i / steps)
+            hrp.CFrame = CFrame.new(currentLerp)
             hrp.Velocity = Vector3.new(0, 0, 0)
+            if targetHRP then
+                targetHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, -2) -- Kéo người theo cùng
+                targetHRP.Velocity = Vector3.new(0, 0, 0)
+            end
             task.wait(0.01)
         end
         hrp.CFrame = tsbMountainWaypoint
+        if targetHRP then targetHRP.CFrame = tsbMountainWaypoint * CFrame.new(0, 0, -3) end
         
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
@@ -221,7 +298,7 @@ title.Size = UDim2.new(1, 0, 0, 30)
 title.Font = Enum.Font.SourceSansBold
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 12
-title.Text = "  ☰ TSB MOBILE MENU v23 (Fixed Lighting, Movement & Fling Target UI)"
+title.Text = "  ☰ TSB MOBILE MENU v24 (Zombieman Animation & Kidnap Teleport)"
 Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
 
 -- THANH TAB (6 Tabs)
@@ -413,12 +490,12 @@ respawnBtn.Size = UDim2.new(1, -5, 0, 35)
 respawnBtn.Font = Enum.Font.SourceSansBold
 respawnBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 respawnBtn.TextSize = 13
-respawnBtn.Text = "Hồi sinh tại chỗ kèm Animation: OFF"
+respawnBtn.Text = "Hồi sinh tại chỗ (Zombieman Anim): OFF"
 Instance.new("UICorner", respawnBtn).CornerRadius = UDim.new(0, 6)
 
 respawnBtn.MouseButton1Click:Connect(function()
     respawnAtDeathEnabled = not respawnAtDeathEnabled
-    respawnBtn.Text = respawnAtDeathEnabled and "Hồi sinh tại chỗ kèm Animation: ON" or "Hồi sinh tại chỗ kèm Animation: OFF"
+    respawnBtn.Text = respawnAtDeathEnabled and "Hồi sinh tại chỗ (Zombieman Anim): ON" or "Hồi sinh tại chỗ (Zombieman Anim): OFF"
     respawnBtn.BackgroundColor3 = respawnAtDeathEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
@@ -426,7 +503,6 @@ end)
 local tab3 = tabContentFrames[3]
 local l3 = Instance.new("UIListLayout", tab3) l3.Padding = UDim.new(0, 8)
 
--- Tốc độ chạy (Fix triệt để cho TSB bằng cách bám theo RenderStepped)
 local speedRow = Instance.new("Frame", tab3)
 speedRow.BackgroundTransparency = 1
 speedRow.Size = UDim2.new(1, -5, 0, 30)
@@ -463,7 +539,6 @@ speedMin.MouseButton1Click:Connect(function()
     speedLbl.Text = "Tốc độ chạy: " .. customWalkSpeed
 end)
 
--- Nhảy cao (Sử dụng JumpPower kết hợp Impulse)
 local jumpRow = Instance.new("Frame", tab3)
 jumpRow.BackgroundTransparency = 1
 jumpRow.Size = UDim2.new(1, -5, 0, 30)
@@ -537,7 +612,13 @@ Instance.new("UICorner", tpMountainBtn).CornerRadius = UDim.new(0, 6)
 tpMountainBtn.MouseButton1Click:Connect(function()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = tsbMountainWaypoint
+        local hrp = char.HumanoidRootPart
+        local targetHRP = nil
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            targetHRP = targetPlayer.Character.HumanoidRootPart
+        end
+        hrp.CFrame = tsbMountainWaypoint
+        if targetHRP then targetHRP.CFrame = tsbMountainWaypoint * CFrame.new(0, 0, -3) end
     end
 end)
 
@@ -551,16 +632,16 @@ espBtn.Size = UDim2.new(1, -5, 0, 32)
 espBtn.Font = Enum.Font.SourceSansBold
 espBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 espBtn.TextSize = 12
-espBtn.Text = "ESP Toàn bộ người chơi: OFF"
+espBtn.Text = "ESP Viền & Tên (Box ESP): OFF"
 Instance.new("UICorner", espBtn).CornerRadius = UDim.new(0, 4)
 
 espBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
-    espBtn.Text = espEnabled and "ESP Toàn bộ người chơi: ON" or "ESP Toàn bộ người chơi: OFF"
+    espBtn.Text = espEnabled and "ESP Viền & Tên (Box ESP): ON" or "ESP Viền & Tên (Box ESP): OFF"
     espBtn.BackgroundColor3 = espEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
+    if not espEnabled then clearESP() end
 end)
 
--- Xray Camera Thông Minh (Fix lỗi tối om màn hình, chỉ làm mờ vật thể che khuất và vô hiệu hóa va chạm camera)
 local smartCameraBtn = Instance.new("TextButton", tab5)
 smartCameraBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
 smartCameraBtn.Size = UDim2.new(1, -5, 0, 32)
@@ -574,17 +655,6 @@ smartCameraBtn.MouseButton1Click:Connect(function()
     wallhackEnabled = not wallhackEnabled
     smartCameraBtn.Text = wallhackEnabled and "Xray vật thể che khuất camera: ON" or "Xray vật thể che khuất camera: OFF"
     smartCameraBtn.BackgroundColor3 = wallhackEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
-    
-    if wallhackEnabled then
-        player.CameraMinZoomDistance = 0.5
-        player.CameraMaxZoomDistance = 400
-    else
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Transparency == 0.8 then
-                obj.Transparency = 0
-            end
-        end
-    end
 end)
 
 -- ================= TAB 6: CÀI ĐẶT =================
@@ -668,7 +738,6 @@ popupTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 popupTitle.TextSize = 13
 popupTitle.Text = "Đang chọn: [Chưa chọn]"
 
--- Nút Bay ra sau
 local btnBehind = Instance.new("TextButton", clickPopup)
 btnBehind.BackgroundColor3 = Color3.fromRGB(60, 60, 120)
 btnBehind.Position = UDim2.new(0, 10, 0, 35)
@@ -679,7 +748,6 @@ btnBehind.TextSize = 11
 btnBehind.Text = "Bay bám đuổi (Sau lưng)"
 Instance.new("UICorner", btnBehind).CornerRadius = UDim.new(0, 4)
 
--- Nút Bay dưới chân
 local btnFeet = Instance.new("TextButton", clickPopup)
 btnFeet.BackgroundColor3 = Color3.fromRGB(120, 60, 60)
 btnFeet.Position = UDim2.new(0, 10, 0, 65)
@@ -690,7 +758,6 @@ btnFeet.TextSize = 11
 btnFeet.Text = "Bay bám đuổi (Dưới chân)"
 Instance.new("UICorner", btnFeet).CornerRadius = UDim.new(0, 4)
 
--- Nút Fling (Hất văng khỏi map)
 local btnFling = Instance.new("TextButton", clickPopup)
 btnFling.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 btnFling.Position = UDim2.new(0, 10, 0, 95)
@@ -754,7 +821,6 @@ btnFeet.MouseButton1Click:Connect(function()
     end
 end)
 
--- Chức năng Fling bay tới hất văng địch khỏi map
 btnFling.MouseButton1Click:Connect(function()
     if selectedClickedPlayer and selectedClickedPlayer.Character and selectedClickedPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local char = player.Character
@@ -832,12 +898,10 @@ RunService.RenderStepped:Connect(function()
             deathPosition = char.HumanoidRootPart.CFrame
         end
 
-        -- Fix tốc độ chạy và nhảy cao hoạt động mượt mà trong TSB
         hum.WalkSpeed = customWalkSpeed
         hum.JumpPower = customJumpPower
     end
 
-    -- Xray Camera Thông Minh (Chỉ làm mờ vật thể che khuất cơ thể khỏi camera)
     if wallhackEnabled and char and char:FindFirstChild("HumanoidRootPart") then
         pcall(function()
             local headPos = camera.CFrame.Position
@@ -856,6 +920,8 @@ RunService.RenderStepped:Connect(function()
     if invisibilityEnabled then
         setTrueInvisibility(true)
     end
+
+    updateESP()
 
     if not isEnabled or not isFollowing then return end
     
@@ -905,32 +971,31 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Hồi sinh tại chỗ kèm Animation
+-- Hồi sinh tại chỗ kèm Animation Rắp nối mảnh vụn kiểu Zombieman
 player.CharacterAdded:Connect(function(newChar)
-    task.wait(0.4)
+    task.wait(0.2)
     if respawnAtDeathEnabled and deathPosition then
         local hrp = newChar:WaitForChild("HumanoidRootPart", 2)
         local hum = newChar:WaitForChild("Humanoid", 2)
-        local leftLeg = newChar:FindFirstChild("Left Leg") or newChar:FindFirstChild("LeftLowerLeg")
-        local rightLeg = newChar:FindFirstChild("Right Leg") or newChar:FindFirstChild("RightLowerLeg")
-        local torso = newChar:FindFirstChild("Torso") or newChar:FindFirstChild("UpperTorso")
-        local head = newChar:FindFirstChild("Head")
         
         if hrp and hum then
             hum.WalkSpeed = 0
             hum.JumpPower = 0
             hrp.CFrame = deathPosition
             
-            local partsToAssemble = {leftLeg, rightLeg, torso, head}
+            -- Ẩn ban đầu để thực hiện hiệu ứng hút các mảnh vụn
             for _, part in ipairs(newChar:GetDescendants()) do
                 if part:IsA("BasePart") then part.Transparency = 1 end
             end
             
-            task.wait(0.2)
-            for _, p in ipairs(partsToAssemble) do
+            task.wait(0.1)
+            -- Tái tạo dần từng phần từ dưới lên (Zombieman assembly)
+            local assemblyOrder = {"Left Leg", "Right Leg", "LeftLowerLeg", "RightLowerLeg", "Torso", "UpperTorso", "Head"}
+            for _, partName in ipairs(assemblyOrder) do
+                local p = newChar:FindFirstChild(partName)
                 if p and p:IsA("BasePart") then
                     p.Transparency = invisibilityEnabled and 1 or 0
-                    task.wait(0.12)
+                    task.wait(0.08)
                 end
             end
             
@@ -944,6 +1009,7 @@ player.CharacterAdded:Connect(function(newChar)
     if invisibilityEnabled then setTrueInvisibility(true) end
 end)
 
+-- Animation Chết: Phân rã nổ tung kiểu Zombieman
 player.CharacterAppearanceLoaded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid")
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -952,10 +1018,10 @@ player.CharacterAppearanceLoaded:Connect(function(char)
         if respawnAtDeathEnabled then
             deathPosition = hrp.CFrame
             pcall(function()
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.Anchored = true
-                    hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(45), 0, 0) + Vector3.new(0, -2, 0)
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Velocity = Vector3.new(math.random(-50,50), math.random(50,100), math.random(-50,50))
+                    end
                 end
             end)
         end
@@ -996,4 +1062,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
-print("Advanced Mobile Menu v23 Loaded Successfully!")
+print("Advanced Mobile Menu v24 Loaded Successfully!")
