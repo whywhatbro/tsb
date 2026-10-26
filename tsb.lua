@@ -37,7 +37,7 @@ local deathPosition = nil
 local isCustomRespawning = false
 
 -- Waypoint ngọn núi nổi tiếng trong TSB
-local tsbMountainWaypoint = CFrame.new(120, 600, -450)
+local tsbMountainWaypoint = CFrame.new(120, 450, 450)
 
 local autoSkills = {
     {key = "One", name = "Skill 1 (1)", enabled = false, isGrab = true},
