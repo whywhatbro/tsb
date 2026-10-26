@@ -103,7 +103,7 @@ end
 
 -- Tạo ScreenGui chính
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedMobileMenuV23"
+screenGui.Name = "TSB"
 screenGui.Parent = CoreGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
