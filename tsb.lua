@@ -35,7 +35,7 @@ local customJumpPower = 50
 local infiniteJumpEnabled = false
 
 local deathPosition = nil
-local tsbMountainWaypoint = CFrame.new(120, 350, -450)
+local tsbMountainWaypoint = CFrame.new(610, 677, 362)
 
 local autoSkills = {
     {key = "One", name = "Skill 1 (1)", enabled = false, isGrab = true},
