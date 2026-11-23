@@ -1,4 +1,4 @@
--- The Strongest Battlegrounds - CANDY BETA Farm (UI Visibility & Mobile Fix)
+-- The Strongest Battlegrounds - CANDY BETA Farm (Fixed Mobile UI Rendering)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
@@ -6,31 +6,29 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
-local player = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() and Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
--- Chọn nơi chứa GUI an toàn cho cả Mobile và PC
-local function getSafeGuiParent()
-    local success, hui = pcall(function()
-        return gethui and gethui()
-    end)
-    if success and hui then return hui end
-    
-    local coreSuccess = pcall(function()
-        local _ = CoreGui.Name
-    end)
-    if coreSuccess then return CoreGui end
-    
-    return playerGui
+local player = Players.LocalPlayer
+while not player do
+    task.wait()
+    player = Players.LocalPlayer
 end
 
-local guiParent = getSafeGuiParent()
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Ưu tiên gethui() trên executor, nếu không có thì gắn thẳng vào PlayerGui để đảm bảo luôn hiển thị
+local guiParent = playerGui
+local ok, hui = pcall(function() return gethui() end)
+if ok and hui then
+    guiParent = hui
+end
 
 if guiParent:FindFirstChild("TSBCandyBetaGui") then
     guiParent.TSBCandyBetaGui:Destroy()
 end
+if playerGui:FindFirstChild("TSBCandyBetaGui") then
+    playerGui.TSBCandyBetaGui:Destroy()
+end
 
--- Anti-AFK (Không gọi sự kiện chuột để tránh làm mất nút Mobile)
+-- Anti-AFK
 player.Idled:Connect(function()
     pcall(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Unknown, false, game)
@@ -42,7 +40,8 @@ end)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "TSBCandyBetaGui"
 screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.IgnoreGuiInset = true
+screenGui.DisplayOrder = 999999
 screenGui.Parent = guiParent
 
 -- Thanh trạng thái PUMPKIN phía trên thanh nộ
@@ -82,22 +81,21 @@ toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
 toggleBtn.Text = "🍬"
 toggleBtn.TextSize = 26
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.AutoButtonColor = true
+toggleBtn.ZIndex = 10
 toggleBtn.Parent = screenGui
 
 local cornerBtn = Instance.new("UICorner")
 cornerBtn.CornerRadius = UDim.new(1, 0)
 cornerBtn.Parent = toggleBtn
 
--- Khung menu chính (Mở sẵn khi chạy script)
+-- Khung menu chính
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 280, 0, 275)
 mainFrame.Position = UDim2.new(0.5, -140, 0.5, -137)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.Visible = true
-mainFrame.Active = true
-mainFrame.Draggable = true
+mainFrame.ZIndex = 5
 mainFrame.Parent = screenGui
 
 local frameCorner = Instance.new("UICorner")
@@ -111,16 +109,44 @@ title.Text = "CANDY BETA"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 13
 title.Font = Enum.Font.SourceSansBold
+title.ZIndex = 6
 title.Parent = mainFrame
 
 local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = title
 
-local function toggleMenu()
+-- Kéo thả khung menu mượt mà trên cảm ứng điện thoại
+local dragging, dragInput, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+title.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
-end
-toggleBtn.Activated:Connect(toggleMenu)
+end)
 
 local settings = {
     autoCandy = false,
@@ -137,13 +163,14 @@ local function createFeatureToggle(name, posY, key)
     btn.TextColor3 = Color3.fromRGB(255, 100, 100)
     btn.TextSize = 12
     btn.Font = Enum.Font.SourceSansBold
+    btn.ZIndex = 6
     btn.Parent = mainFrame
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = btn
     
-    btn.Activated:Connect(function()
+    btn.MouseButton1Click:Connect(function()
         settings[key] = not settings[key]
         if settings[key] then
             btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
@@ -169,6 +196,7 @@ teleBossBtn.Text = "TELEPORT TO PUMPKIN"
 teleBossBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 teleBossBtn.TextSize = 12
 teleBossBtn.Font = Enum.Font.SourceSansBold
+teleBossBtn.ZIndex = 6
 teleBossBtn.Parent = mainFrame
 
 local teleCorner = Instance.new("UICorner")
@@ -186,6 +214,7 @@ dropToggleBtn.Text = "▼ Select Combat Skills Order"
 dropToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 dropToggleBtn.TextSize = 11
 dropToggleBtn.Font = Enum.Font.SourceSansBold
+dropToggleBtn.ZIndex = 6
 dropToggleBtn.Parent = mainFrame
 
 local dropToggleCorner = Instance.new("UICorner")
@@ -197,6 +226,7 @@ dropdownFrame.Size = UDim2.new(1, -20, 0, 100)
 dropdownFrame.Position = UDim2.new(0, 10, 0, 265)
 dropdownFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 dropdownFrame.Visible = false
+dropdownFrame.ZIndex = 6
 dropdownFrame.Parent = mainFrame
 
 local dropCorner = Instance.new("UICorner")
@@ -204,7 +234,7 @@ dropCorner.CornerRadius = UDim.new(0, 8)
 dropCorner.Parent = dropdownFrame
 
 local skillListOpen = false
-dropToggleBtn.Activated:Connect(function()
+dropToggleBtn.MouseButton1Click:Connect(function()
     skillListOpen = not skillListOpen
     dropdownFrame.Visible = skillListOpen
     mainFrame.Size = skillListOpen and UDim2.new(0, 280, 0, 375) or UDim2.new(0, 280, 0, 275)
@@ -223,13 +253,14 @@ for i = 1, 4 do
     sBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     sBtn.TextSize = 10
     sBtn.Font = Enum.Font.SourceSansBold
+    sBtn.ZIndex = 7
     sBtn.Parent = dropdownFrame
     
     local sc = Instance.new("UICorner")
     sc.CornerRadius = UDim.new(0, 4)
     sc.Parent = sBtn
     
-    sBtn.Activated:Connect(function()
+    sBtn.MouseButton1Click:Connect(function()
         for idx, val in ipairs(availableSkills) do
             if val == skillOrder[i] then
                 local nextIdx = idx % #availableSkills + 1
@@ -305,7 +336,7 @@ local function tapMobileButton(buttonNames)
     end)
 end
 
-teleBossBtn.Activated:Connect(function()
+teleBossBtn.MouseButton1Click:Connect(function()
     local _, bossPart = getBossTarget()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") and bossPart then
