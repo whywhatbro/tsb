@@ -1,4 +1,4 @@
--- The Strongest Battlegrounds - CANDY BETA Farm (Fixed Mobile UI Rendering)
+-- The Strongest Battlegrounds - CANDY BETA Farm (Mobile Skill Trigger Fix)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
@@ -14,7 +14,6 @@ end
 
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Ưu tiên gethui() trên executor, nếu không có thì gắn thẳng vào PlayerGui để đảm bảo luôn hiển thị
 local guiParent = playerGui
 local ok, hui = pcall(function() return gethui() end)
 if ok and hui then
@@ -73,7 +72,7 @@ statusText.Font = Enum.Font.SourceSansBold
 statusText.TextXAlignment = Enum.TextXAlignment.Left
 statusText.Parent = statusContainer
 
--- Nút bật/tắt menu hình viên kẹo
+-- Nút bật/tắt menu
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Size = UDim2.new(0, 50, 0, 50)
 toggleBtn.Position = UDim2.new(0, 20, 0, 150)
@@ -116,7 +115,6 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = title
 
--- Kéo thả khung menu mượt mà trên cảm ứng điện thoại
 local dragging, dragInput, dragStart, startPos
 title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -187,7 +185,6 @@ end
 createFeatureToggle("CANDY FARM", 45, "autoCandy")
 createFeatureToggle("AUTOMATIC DOOR", 90, "autoDoor")
 
--- Nút dịch chuyển 1 lần đến Pumpkin
 local teleBossBtn = Instance.new("TextButton")
 teleBossBtn.Size = UDim2.new(1, -20, 0, 40)
 teleBossBtn.Position = UDim2.new(0, 10, 0, 135)
@@ -205,7 +202,6 @@ teleCorner.Parent = teleBossBtn
 
 createFeatureToggle("AUTO PUMPKIN COMBAT", 180, "autoBossCombat")
 
--- Dropdown chọn thứ tự skill
 local dropToggleBtn = Instance.new("TextButton")
 dropToggleBtn.Size = UDim2.new(1, -20, 0, 35)
 dropToggleBtn.Position = UDim2.new(0, 10, 0, 225)
@@ -306,30 +302,68 @@ local function getBossTarget()
     return nil, nil
 end
 
-local function tapMobileButton(buttonNames)
+-- Hàm gửi tín hiệu chạm vào nút GUI trên màn hình Mobile (Hỗ trợ cả TouchTap & Activated)
+local function fireGuiButton(guiObj)
+    if firesignal then
+        pcall(function() firesignal(guiObj.TouchTap) end)
+        pcall(function() firesignal(guiObj.MouseButton1Down) end)
+        pcall(function() firesignal(guiObj.Activated) end)
+        pcall(function() firesignal(guiObj.MouseButton1Click) end)
+        pcall(function() firesignal(guiObj.MouseButton1Up) end)
+    else
+        local absPos = guiObj.AbsolutePosition
+        local absSize = guiObj.AbsoluteSize
+        local cx = absPos.X + absSize.X / 2
+        local cy = absPos.Y + absSize.Y / 2
+        VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
+        task.wait(0.01)
+        VirtualInputManager:SendTouchEvent(1, 2, cx, cy)
+    end
+end
+
+-- Kích hoạt nút đánh M1 trên Mobile
+local function triggerMobileM1()
     pcall(function()
         for _, guiObj in pairs(playerGui:GetDescendants()) do
             if guiObj:IsA("GuiButton") and guiObj.Visible then
                 local gName = string.lower(guiObj.Name)
                 local pName = guiObj.Parent and string.lower(guiObj.Parent.Name) or ""
-                for _, targetName in ipairs(buttonNames) do
-                    if gName == targetName or pName == targetName or gName:find(targetName) then
-                        if firesignal then
-                            firesignal(guiObj.MouseButton1Down)
-                            firesignal(guiObj.Activated)
-                            firesignal(guiObj.MouseButton1Click)
-                            firesignal(guiObj.MouseButton1Up)
-                        else
-                            local absPos = guiObj.AbsolutePosition
-                            local absSize = guiObj.AbsoluteSize
-                            local cx = absPos.X + absSize.X / 2
-                            local cy = absPos.Y + absSize.Y / 2
-                            VirtualInputManager:SendTouchEvent(1, 0, cx, cy)
-                            task.wait(0.01)
-                            VirtualInputManager:SendTouchEvent(1, 2, cx, cy)
-                        end
-                        return
-                    end
+                if gName == "punch" or gName == "m1" or gName == "attack" or pName == "punch" or gName:find("punch") then
+                    fireGuiButton(guiObj)
+                    return
+                end
+            end
+        end
+    end)
+end
+
+-- Kích hoạt ô chiêu thức (1, 2, 3, 4) trên thanh Hotbar Mobile
+local function triggerMobileSkill(slotStr)
+    pcall(function()
+        -- 1. Tìm trực tiếp trong thanh Hotbar của TSB (PlayerGui.Hotbar.Backpack.Hotbar[slotStr].Base)
+        local hotbar = playerGui:FindFirstChild("Hotbar")
+        if hotbar then
+            local backpack = hotbar:FindFirstChild("Backpack")
+            local innerHotbar = backpack and backpack:FindFirstChild("Hotbar")
+            local slotFrame = innerHotbar and innerHotbar:FindFirstChild(slotStr)
+            if slotFrame then
+                local btn = slotFrame:FindFirstChild("Base") or slotFrame:FindFirstChildOfClass("ImageButton") or slotFrame:FindFirstChildOfClass("TextButton")
+                if btn and btn:IsA("GuiButton") then
+                    fireGuiButton(btn)
+                    return
+                end
+            end
+        end
+
+        -- 2. Dự phòng: Quét tất cả nút nằm ở nửa dưới màn hình có tên hoặc chữ là số thứ tự skill (1, 2, 3, 4)
+        local screenHeight = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize.Y or 800
+        for _, guiObj in pairs(playerGui:GetDescendants()) do
+            if guiObj:IsA("GuiButton") and guiObj.Visible and guiObj.AbsolutePosition.Y > (screenHeight * 0.6) then
+                local gName = guiObj.Name
+                local pName = guiObj.Parent and guiObj.Parent.Name or ""
+                if gName == slotStr or pName == slotStr or (gName == "Base" and pName == slotStr) then
+                    fireGuiButton(guiObj)
+                    return
                 end
             end
         end
@@ -375,13 +409,15 @@ task.spawn(function()
                     hrp.CFrame = bossPart.CFrame
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     
-                    tapMobileButton({"punch", "m1", "attack", "combat", "hit"})
+                    -- Gửi tín hiệu đánh M1
+                    triggerMobileM1()
                     
+                    -- Xoay vòng kích hoạt nút skill 1, 2, 3, 4 theo thứ tự đã chọn
                     actionDelay = actionDelay + 1
-                    if actionDelay >= 20 then
+                    if actionDelay >= 18 then
                         actionDelay = 0
                         local activeKey = skillOrder[currentSkillIndex]
-                        tapMobileButton({tostring(activeKey), "slot" .. tostring(activeKey), "skill" .. tostring(activeKey), "move" .. tostring(activeKey)})
+                        triggerMobileSkill(activeKey)
                         currentSkillIndex = currentSkillIndex % #skillOrder + 1
                     end
                     continue
@@ -465,21 +501,3 @@ task.spawn(function()
                                 end
                                 
                                 local stillHasPrompt = false
-                                for _, p in pairs(obj:GetDescendants()) do
-                                    if p:IsA("ProximityPrompt") then
-                                        stillHasPrompt = true
-                                        break
-                                    end
-                                end
-                                if not stillHasPrompt then openedDoors[obj] = true end
-                                foundDoor = true
-                                break
-                            end
-                        end
-                    end
-                end
-                if foundDoor then continue end
-            end
-        end
-    end
-end)
