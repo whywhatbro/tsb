@@ -1,4 +1,4 @@
--- TSB CANDY BETA - Auto Candy Roll (500 Candy Only - Robux Protected)
+-- TSB CANDY BETA - Auto Hold 4.2s Candy Roll (500 Candy Only - Robux Protected)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
@@ -433,7 +433,7 @@ end
 refreshActUI()
 
 -- ==========================================
--- 5. NOCLIP, PUMPKIN ESP, ROLL 500 CANDY & COMBAT
+-- 5. NOCLIP, PUMPKIN ESP, HOLD-ROLL 500 CANDY & COMBAT
 -- ==========================================
 local validCandies = {
     ["DarkOrangeCandy1"] = true, ["DarkOrangeCandy2"] = true,
@@ -447,6 +447,7 @@ local openedDoors = {}
 local SAFE_SKY_CFRAME = CFrame.new(0, 950, 0)
 local BEHIND_DISTANCE = 4.5
 local SHOPKEEPER_FALLBACK_POS = Vector3.new(566.85, 445.70, -437.97)
+local ROLL_HOLD_SECONDS = 4.2 -- Thời gian nhấn giữ 4.2 giây để roll bằng 500 kẹo
 
 local isBossNoclipActive = false
 local savedCollideStates = {}
@@ -613,6 +614,36 @@ local function fireGuiButton(guiObj)
     end
 end
 
+-- Hàm nhấn giữ nút UI trên màn hình Mobile trong khoảng thời gian duration (4.2 giây)
+local function holdGuiButton(guiObj, duration)
+    local pos, size = guiObj.AbsolutePosition, guiObj.AbsoluteSize
+    local cx, cy = pos.X + size.X / 2, pos.Y + size.Y / 2
+
+    -- Bắt đầu giữ phím/cảm ứng
+    if firesignal then
+        pcall(function() firesignal(guiObj.MouseButton1Down) end)
+    end
+    pcall(function()
+        VirtualInputManager:SendTouchEvent(2, 0, cx, cy)
+    end)
+
+    local elapsed = 0
+    while elapsed < duration and config.autoCandyRoll and guiObj and guiObj.Parent and guiObj.Visible do
+        task.wait(0.1)
+        elapsed = elapsed + 0.1
+    end
+
+    -- Nhả phím/cảm ứng sau khi giữ đủ 4.2 giây
+    if firesignal then
+        pcall(function() firesignal(guiObj.MouseButton1Up) end)
+        pcall(function() firesignal(guiObj.Activated) end)
+        pcall(function() firesignal(guiObj.MouseButton1Click) end)
+    end
+    pcall(function()
+        VirtualInputManager:SendTouchEvent(2, 2, cx, cy)
+    end)
+end
+
 local function triggerMobileM1()
     pcall(function()
         for _, guiObj in ipairs(playerGui:GetDescendants()) do
@@ -656,8 +687,43 @@ local function triggerMobileSkill(slotStr)
     end)
 end
 
--- Hàm tự động roll bằng 500 kẹo tại Workspace.Cart.Shopkeeper (Chặn tuyệt đối nút 99 Robux)
-local rollTick = 0
+-- Tìm nút chọn Roll dòng 1 (500 kẹo), bỏ qua tuyệt đối dòng 2 (Robux)
+local function findCandy500Button()
+    local candidates = {}
+
+    for _, guiObj in ipairs(playerGui:GetDescendants()) do
+        if guiObj:IsA("GuiButton") and guiObj.Visible and not guiObj:IsDescendantOf(screenGui) then
+            local combinedText = string.lower(guiObj.Name)
+            if guiObj:IsA("TextButton") then
+                combinedText = combinedText .. " " .. string.lower(guiObj.Text)
+            end
+            for _, child in ipairs(guiObj:GetDescendants()) do
+                if child:IsA("TextLabel") then
+                    combinedText = combinedText .. " " .. string.lower(child.Text)
+                end
+            end
+
+            local isRobuxBtn = combinedText:find("robux") or combinedText:find("r%$") or combinedText:find("99")
+            if not isRobuxBtn then
+                if combinedText:find("500") or combinedText:find("candy") then
+                    table.insert(candidates, guiObj)
+                end
+            end
+        end
+    end
+
+    -- Nếu tìm thấy nhiều nút hợp lệ, ưu tiên nút nằm cao hơn trên màn hình (Dòng 1: 500 kẹo)
+    if #candidates > 0 then
+        table.sort(candidates, function(a, b)
+            return a.AbsolutePosition.Y < b.AbsolutePosition.Y
+        end)
+        return candidates[1]
+    end
+
+    return nil
+end
+
+local isHoldingRoll = false
 local function runAutoCandyRoll(hrp)
     setBossNoclip(false)
 
@@ -672,7 +738,7 @@ local function runAutoCandyRoll(hrp)
         hrp.AssemblyLinearVelocity = Vector3.zero
     end
 
-    -- 2. Kích hoạt ProximityPrompt nếu nằm trong Workspace.Cart
+    -- 2. Kích hoạt ProximityPrompt nếu có trong Workspace.Cart
     if cart then
         pcall(function()
             for _, desc in ipairs(cart:GetDescendants()) do
@@ -685,33 +751,17 @@ local function runAutoCandyRoll(hrp)
         end)
     end
 
-    -- 3. Tìm và bấm nút chọn Roll 500 kẹo trên giao diện (bỏ qua mọi nút có chứa 99 hoặc robux)
-    rollTick = rollTick + 1
-    if rollTick >= 8 then
-        rollTick = 0
-        pcall(function()
-            for _, guiObj in ipairs(playerGui:GetDescendants()) do
-                if guiObj:IsA("GuiButton") and guiObj.Visible and not guiObj:IsDescendantOf(screenGui) then
-                    local combinedText = string.lower(guiObj.Name)
-                    if guiObj:IsA("TextButton") then
-                        combinedText = combinedText .. " " .. string.lower(guiObj.Text)
-                    end
-                    for _, child in ipairs(guiObj:GetDescendants()) do
-                        if child:IsA("TextLabel") then
-                            combinedText = combinedText .. " " .. string.lower(child.Text)
-                        end
-                    end
-
-                    local isRobuxBtn = combinedText:find("99") or combinedText:find("robux") or combinedText:find("r%$")
-                    local isCandy500Btn = combinedText:find("500") or (combinedText:find("candy") and not isRobuxBtn)
-
-                    if isCandy500Btn and not isRobuxBtn then
-                        fireGuiButton(guiObj)
-                        return
-                    end
-                end
-            end
-        end)
+    -- 3. Tìm dòng 1 (500 kẹo) và nhấn giữ trong 4.2 giây
+    if not isHoldingRoll then
+        local candyBtn = findCandy500Button()
+        if candyBtn then
+            isHoldingRoll = true
+            task.spawn(function()
+                holdGuiButton(candyBtn, ROLL_HOLD_SECONDS)
+                task.wait(0.3)
+                isHoldingRoll = false
+            end)
+        end
     end
 end
 
@@ -831,7 +881,6 @@ task.spawn(function()
         local char = player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp then
-            -- Ưu tiên thực thi Auto Roll 500 kẹo nếu đang bật
             if config.autoCandyRoll then
                 runAutoCandyRoll(hrp)
                 continue
