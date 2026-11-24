@@ -1,4 +1,4 @@
--- Advanced Mobile Menu v24 (TSB Ultimate: Box ESP, Mountain Kidnap Garou Skills, Perfect Death Respawn & Zombieman Disintegrate Animation)
+-- Advanced Mobile Menu v25 (TSB Ultimate + Auto Find Player & Server Joiner)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -6,6 +6,9 @@ local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Workspace = game:GetService("Workspace")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
@@ -28,6 +31,7 @@ local respawnAtDeathEnabled = false
 local espEnabled = false
 local wallhackEnabled = false
 local uiLocked = false
+local autoJoinServerEnabled = false
 
 local customWalkSpeed = 16
 local customJumpPower = 50
@@ -135,7 +139,7 @@ local function updateESP()
     end
 end
 
--- Aim & Void Executer (Tóm và kéo người chơi cùng khi bay)
+-- Aim & Void Executer
 local function aimAndPressKey(skillObj, targetChar)
     local keyCode = Enum.KeyCode[skillObj.key]
     if keyCode and targetChar and targetChar:FindFirstChild("HumanoidRootPart") and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -208,7 +212,6 @@ resetBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Nút Bay Lên Núi (Kèm kéo theo mục tiêu đang chọn bằng Garou Skill 1/2 không nộ)
 local flyMountainBtn = Instance.new("TextButton", screenGui)
 flyMountainBtn.Name = "FlyMountainBtn"
 flyMountainBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
@@ -238,7 +241,7 @@ flyMountainBtn.MouseButton1Click:Connect(function()
             hrp.CFrame = CFrame.new(currentLerp)
             hrp.Velocity = Vector3.new(0, 0, 0)
             if targetHRP then
-                targetHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, -2) -- Kéo người theo cùng
+                targetHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, -2)
                 targetHRP.Velocity = Vector3.new(0, 0, 0)
             end
             task.wait(0.01)
@@ -287,7 +290,7 @@ makeDraggable(flyMountainBtn)
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 mainFrame.Position = UDim2.new(0.12, 0, 0.15, 0)
-mainFrame.Size = UDim2.new(0, 560, 0, 350)
+mainFrame.Size = UDim2.new(0, 580, 0, 355)
 mainFrame.Visible = false
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 makeDraggable(mainFrame)
@@ -298,34 +301,36 @@ title.Size = UDim2.new(1, 0, 0, 30)
 title.Font = Enum.Font.SourceSansBold
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 12
-title.Text = "  ☰ TSB MOBILE MENU v24 (Zombieman Animation & Kidnap Teleport)"
+title.Text = "  ☰ TSB MOBILE MENU v25 (Auto Find Player & Server Joiner)"
 Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
 
--- THANH TAB (6 Tabs)
+-- THANH TAB (7 Tabs)
 local tabButtonsFrame = Instance.new("Frame", mainFrame)
 tabButtonsFrame.BackgroundTransparency = 1
 tabButtonsFrame.Position = UDim2.new(0, 10, 0, 35)
 tabButtonsFrame.Size = UDim2.new(1, -20, 0, 30)
 
-local tabs = {"1. Combat", "2. Hồi sinh", "3. Movement", "4. Dịch chuyển", "5. Visual & ESP", "6. Cài đặt"}
+local tabs = {"1. Combat", "2. Hồi sinh", "3. Movement", "4. Dịch chuyển", "5. Visual & ESP", "6. Cài đặt", "7. Tìm người"}
 local tabContentFrames = {}
+local tabButtons = {}
 
 for i, tabName in ipairs(tabs) do
     local tBtn = Instance.new("TextButton", tabButtonsFrame)
     tBtn.BackgroundColor3 = i == 1 and Color3.fromRGB(60, 60, 120) or Color3.fromRGB(40, 40, 40)
-    tBtn.Size = UDim2.new(0.16, 0, 1, 0)
-    tBtn.Position = UDim2.new((i-1)*0.168, 0, 0, 0)
+    tBtn.Size = UDim2.new(1/#tabs - 0.008, 0, 1, 0)
+    tBtn.Position = UDim2.new((i-1)/#tabs, 0, 0, 0)
     tBtn.Font = Enum.Font.SourceSansBold
     tBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tBtn.TextSize = 10
+    tBtn.TextSize = 9.5
     tBtn.Text = tabName
     Instance.new("UICorner", tBtn).CornerRadius = UDim.new(0, 4)
+    table.insert(tabButtons, tBtn)
 
     local cFrame = Instance.new("ScrollingFrame", mainFrame)
     cFrame.BackgroundTransparency = 1
     cFrame.Position = UDim2.new(0, 10, 0, 72)
     cFrame.Size = UDim2.new(1, -20, 1, -80)
-    cFrame.CanvasSize = UDim2.new(0, 0, 0, 320)
+    cFrame.CanvasSize = UDim2.new(0, 0, 0, 340)
     cFrame.ScrollBarThickness = 3
     cFrame.Visible = (i == 1)
     table.insert(tabContentFrames, cFrame)
@@ -333,10 +338,7 @@ for i, tabName in ipairs(tabs) do
     tBtn.MouseButton1Click:Connect(function()
         for idx, frm in ipairs(tabContentFrames) do
             frm.Visible = (idx == i)
-            local btnObj = tabButtonsFrame:GetChildren()[idx]
-            if btnObj and btnObj:IsA("TextButton") then
-                btnObj.BackgroundColor3 = (idx == i) and Color3.fromRGB(60, 60, 120) or Color3.fromRGB(40, 40, 40)
-            end
+            tabButtons[idx].BackgroundColor3 = (idx == i) and Color3.fromRGB(60, 60, 120) or Color3.fromRGB(40, 40, 40)
         end
     end)
 end
@@ -722,6 +724,202 @@ lockUiBtn.MouseButton1Click:Connect(function()
     lockUiBtn.BackgroundColor3 = uiLocked and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 end)
 
+-- ================= TAB 7: TÌM NGƯỜI & AUTO JOIN SERVER =================
+local tab7 = tabContentFrames[7]
+local l7 = Instance.new("UIListLayout", tab7) l7.Padding = UDim.new(0, 6)
+
+local searchBox = Instance.new("TextBox", tab7)
+searchBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+searchBox.Size = UDim2.new(1, -5, 0, 30)
+searchBox.Font = Enum.Font.SourceSansBold
+searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+searchBox.PlaceholderText = "Nhập tên hoặc DisplayName người chơi cần tìm..."
+searchBox.Text = ""
+searchBox.TextSize = 12
+Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 4)
+
+-- Đồng bộ tên với nameBox ở Tab 1 để tiện dùng chung
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if nameBox.Text ~= searchBox.Text then
+        nameBox.Text = searchBox.Text
+    end
+end)
+
+local statusLbl = Instance.new("TextLabel", tab7)
+statusLbl.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+statusLbl.Size = UDim2.new(1, -5, 0, 28)
+statusLbl.Font = Enum.Font.SourceSansBold
+statusLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+statusLbl.TextSize = 11
+statusLbl.Text = "Trạng thái: Chờ nhập tên..."
+Instance.new("UICorner", statusLbl).CornerRadius = UDim.new(0, 4)
+
+local function findPlayerInCurrentServer(query)
+    query = string.lower((query or ""):gsub("^%s*(.-)%s*$", "%1"))
+    if query == "" then return nil end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            local uName = string.lower(p.Name)
+            local dName = p.DisplayName and string.lower(p.DisplayName) or ""
+            if uName == query or dName == query or string.find(uName, query, 1, true) or (dName ~= "" and string.find(dName, query, 1, true)) then
+                return p
+            end
+        end
+    end
+    return nil
+end
+
+local function httpGetJson(url)
+    if syn and syn.request then
+        local res = syn.request({Url = url, Method = "GET"})
+        if res and res.Success and res.Body then
+            return HttpService:JSONDecode(res.Body)
+        end
+    elseif http and http.request then
+        local res = http.request({Url = url, Method = "GET"})
+        if res and res.Success and res.Body then
+            return HttpService:JSONDecode(res.Body)
+        end
+    elseif request then
+        local res = request({Url = url, Method = "GET"})
+        if res and res.Success and res.Body then
+            return HttpService:JSONDecode(res.Body)
+        end
+    else
+        local raw = game:HttpGet(url)
+        if raw then
+            return HttpService:JSONDecode(raw)
+        end
+    end
+    return nil
+end
+
+local isSearchingServers = false
+local function findAndJoinPlayerServer(query)
+    query = (query or ""):gsub("^%s*(.-)%s*$", "%1")
+    if query == "" then
+        statusLbl.Text = "Trạng thái: Vui lòng nhập tên người chơi!"
+        return
+    end
+
+    -- 1. Kiểm tra ngay trong server hiện tại
+    local localFound = findPlayerInCurrentServer(query)
+    if localFound then
+        targetPlayer = localFound
+        nameBox.Text = localFound.Name
+        statusLbl.Text = "Trạng thái: Đã thấy [" .. localFound.Name .. "] ngay server này!"
+        return
+    end
+
+    if isSearchingServers then
+        statusLbl.Text = "Trạng thái: Đang quét các server khác..."
+        return
+    end
+
+    isSearchingServers = true
+    statusLbl.Text = "Trạng thái: Đang dò server chứa [" .. query .. "]..."
+
+    task.spawn(function()
+        local placeId = game.PlaceId
+        local currentJobId = game.JobId
+        local cursor = ""
+        local scannedPages = 0
+        local foundJobId = nil
+        local foundPlayerName = query
+
+        while scannedPages < 25 and not foundJobId do
+            scannedPages = scannedPages + 1
+            local url = string.format(
+                "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100%s",
+                placeId,
+                cursor ~= "" and ("&cursor=" .. HttpService:UrlEncode(cursor)) or ""
+            )
+
+            local ok, data = pcall(httpGetJson, url)
+            if not ok or type(data) ~= "table" or type(data.data) ~= "table" then
+                break
+            end
+
+            for _, srv in ipairs(data.data) do
+                if type(srv) == "table" and srv.id and srv.id ~= currentJobId and type(srv.playerTokens) == "table" then
+                    -- Một số endpoint trả về playerTokens hoặc không trả tên trực tiếp; kiểm tra nếu có trường players/name
+                    if type(srv.players) == "table" then
+                        for _, pInfo in ipairs(srv.players) do
+                            local pName = tostring(pInfo.name or pInfo.Name or "")
+                            local pDisp = tostring(pInfo.displayName or pInfo.DisplayName or "")
+                            if string.find(string.lower(pName), string.lower(query), 1, true)
+                                or (pDisp ~= "" and string.find(string.lower(pDisp), string.lower(query), 1, true)) then
+                                foundJobId = srv.id
+                                foundPlayerName = pName ~= "" and pName or query
+                                break
+                            end
+                        end
+                    end
+                end
+                if foundJobId then break end
+            end
+
+            if foundJobId then break end
+            if data.nextPageCursor then
+                cursor = data.nextPageCursor
+                task.wait(0.25)
+            else
+                break
+            end
+        end
+
+        isSearchingServers = false
+
+        if foundJobId then
+            statusLbl.Text = "Trạng thái: Tìm thấy [" .. foundPlayerName .. "]! Đang vào server..."
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(placeId, foundJobId, player)
+            end)
+        else
+            statusLbl.Text = "Trạng thái: Không thấy server công khai có tên này (hoặc ẩn/riêng tư)."
+        end
+    end)
+end
+
+local findJoinBtn = Instance.new("TextButton", tab7)
+findJoinBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 200)
+findJoinBtn.Size = UDim2.new(1, -5, 0, 32)
+findJoinBtn.Font = Enum.Font.SourceSansBold
+findJoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+findJoinBtn.TextSize = 12
+findJoinBtn.Text = "Tìm người & Tự động tham gia Server"
+Instance.new("UICorner", findJoinBtn).CornerRadius = UDim.new(0, 4)
+
+findJoinBtn.MouseButton1Click:Connect(function()
+    findAndJoinPlayerServer(searchBox.Text)
+end)
+
+local autoJoinBtn = Instance.new("TextButton", tab7)
+autoJoinBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+autoJoinBtn.Size = UDim2.new(1, -5, 0, 30)
+autoJoinBtn.Font = Enum.Font.SourceSansBold
+autoJoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoJoinBtn.TextSize = 11
+autoJoinBtn.Text = "Tự động dò & join liên tục: OFF"
+Instance.new("UICorner", autoJoinBtn).CornerRadius = UDim.new(0, 4)
+
+autoJoinBtn.MouseButton1Click:Connect(function()
+    autoJoinServerEnabled = not autoJoinServerEnabled
+    autoJoinBtn.Text = autoJoinServerEnabled and "Tự động dò & join liên tục: ON" or "Tự động dò & join liên tục: OFF"
+    autoJoinBtn.BackgroundColor3 = autoJoinServerEnabled and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
+end)
+
+-- Vòng lặp tự động dò & join liên tục nếu bật
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if autoJoinServerEnabled and searchBox.Text ~= "" then
+            findAndJoinPlayerServer(searchBox.Text)
+        end
+    end
+end)
+
 -- ================= HỆ THỐNG BẢNG CỐ ĐỊNH CHỌN MỤC TIÊU & FLING =================
 local clickPopup = Instance.new("Frame", screenGui)
 clickPopup.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -844,9 +1042,15 @@ btnFling.MouseButton1Click:Connect(function()
 end)
 
 local function findTargetByText(query)
+    if not query or query == "" then return nil end
+    local q = string.lower(query)
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and (p.DisplayName and string.lower(p.DisplayName):sub(1, #query) == string.lower(query) or string.lower(p.Name):sub(1, #query) == string.lower(query)) then
-            return p
+        if p ~= player then
+            local uName = string.lower(p.Name)
+            local dName = p.DisplayName and string.lower(p.DisplayName) or ""
+            if uName:sub(1, #q) == q or (dName ~= "" and dName:sub(1, #q) == q) then
+                return p
+            end
         end
     end
     return nil
@@ -983,13 +1187,11 @@ player.CharacterAdded:Connect(function(newChar)
             hum.JumpPower = 0
             hrp.CFrame = deathPosition
             
-            -- Ẩn ban đầu để thực hiện hiệu ứng hút các mảnh vụn
             for _, part in ipairs(newChar:GetDescendants()) do
                 if part:IsA("BasePart") then part.Transparency = 1 end
             end
             
             task.wait(0.1)
-            -- Tái tạo dần từng phần từ dưới lên (Zombieman assembly)
             local assemblyOrder = {"Left Leg", "Right Leg", "LeftLowerLeg", "RightLowerLeg", "Torso", "UpperTorso", "Head"}
             for _, partName in ipairs(assemblyOrder) do
                 local p = newChar:FindFirstChild(partName)
@@ -1062,4 +1264,4 @@ toggleBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
 end)
 
-print("Advanced Mobile Menu v24 Loaded Successfully!")
+print("Advanced Mobile Menu v25 Loaded Successfully!")
